@@ -441,16 +441,16 @@ document.addEventListener('DOMContentLoaded', () => {
     contourCtx.drawImage(overlayCanvas, 0, 0);
     if (maxX > minX && maxY > minY) {
       contourCtx.save();
-      contourCtx.strokeStyle = '#00f0ff';
+      contourCtx.strokeStyle = '#0E7C86';
       contourCtx.lineWidth = Math.max(2, Math.round(w / 256));
-      contourCtx.shadowColor = '#00f0ff';
-      contourCtx.shadowBlur = 10;
+      contourCtx.shadowColor = 'rgba(14, 124, 134, 0.2)';
+      contourCtx.shadowBlur = 4;
       contourCtx.strokeRect(minX - 6, minY - 6, (maxX - minX) + 12, (maxY - minY) + 12);
 
       // ROI Label
-      contourCtx.fillStyle = '#00f0ff';
+      contourCtx.fillStyle = '#0E7C86';
       contourCtx.font = `bold ${Math.max(12, Math.round(w / 36))}px Inter, sans-serif`;
-      contourCtx.shadowBlur = 4;
+      contourCtx.shadowBlur = 0;
       contourCtx.fillText(`ROI: ${targetPathology} (P: ${Math.round(peakVal * 100)}%)`, minX, Math.max(20, minY - 10));
       contourCtx.restore();
     }
@@ -797,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
     topPathologyName.textContent = data.top_pathology;
     const topProbPercent = Math.round(data.top_probability * 100);
     topConfidenceText.textContent = `${topProbPercent}%`;
-    topConfidenceMeter.style.background = `conic-gradient(var(--cyan-primary) ${topProbPercent * 3.6}deg, rgba(255, 255, 255, 0.08) 0deg)`;
+    topConfidenceMeter.style.background = `conic-gradient(var(--primary) ${topProbPercent * 3.6}deg, var(--border-card) 0deg)`;
 
     const topFinding = data.pathologies[0];
     riskBadge.className = `risk-badge badge-${topFinding.badge_color}`;
@@ -939,11 +939,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const backgroundColors = filtered.map(p => {
       if (p.pathology === state.activeGradcamPathology) {
-        return '#00f0ff';
+        return '#0E7C86';
       }
-      if (p.risk_level === 'High') return 'rgba(244, 63, 94, 0.85)';
-      if (p.risk_level === 'Moderate') return 'rgba(245, 158, 11, 0.85)';
-      return 'rgba(14, 165, 233, 0.65)';
+      if (p.risk_level === 'High') return '#DC3545';
+      if (p.risk_level === 'Moderate') return '#ED8936';
+      return '#345995';
     });
 
     if (state.chartInstance) {
@@ -982,19 +982,19 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         scales: {
           x: {
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            grid: { color: '#E2E8F0' },
             ticks: {
-              color: '#94a3b8',
-              font: { family: 'Inter', size: 10 }
+              color: '#4A5568',
+              font: { family: 'Inter', size: 12 }
             }
           },
           y: {
             min: 0,
             max: 100,
-            grid: { color: 'rgba(255, 255, 255, 0.08)' },
+            grid: { color: '#E2E8F0' },
             ticks: {
-              color: '#94a3b8',
-              font: { family: 'JetBrains Mono', size: 10 },
+              color: '#4A5568',
+              font: { family: 'JetBrains Mono', size: 12 },
               callback: (value) => `${value}%`
             }
           }
@@ -1042,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
       div.innerHTML = `
         <div class="finding-header">
           <span class="finding-name">${item.pathology}</span>
-          <span class="finding-prob" style="color:${item.risk_level === 'High' ? 'var(--rose-danger)' : item.risk_level === 'Moderate' ? 'var(--amber-warning)' : 'var(--emerald-success)'}">
+          <span class="finding-prob" style="color:${item.risk_level === 'High' ? 'var(--risk-high)' : item.risk_level === 'Moderate' ? 'var(--risk-moderate)' : 'var(--risk-low)'}">
             ${item.percentage}%
           </span>
         </div>
