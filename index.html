@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulmoScan AI - Deep Learning Chest X-Ray Diagnosis & Grad-CAM</title>
+  <meta name="description" content="State-of-the-art AI medical diagnosis platform for 14 chest pathologies with real-time Grad-CAM heatmap visualization and clinical reports.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js for Interactive Diagnostic Graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="brand-icon">
+        <i data-lucide="activity"></i>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">PULMO<span class="highlight">SCAN</span> AI</div>
+        <div class="brand-subtitle">DenseNet-121 Radiographic Diagnostic Studio & Grad-CAM</div>
+      </div>
+    </div>
+
+    <!-- Active Mode Switcher -->
+    <div class="nav-center">
+      <div class="mode-toggle-group">
+        <button id="btnDoctorMode" class="mode-btn active" title="Detailed Radiologic Insights, AUCs & Fleischner Guidelines">
+          <i data-lucide="stethoscope"></i>
+          <span>Doctor / Specialist</span>
+        </button>
+        <button id="btnPatientMode" class="mode-btn" title="Clear, Plain-Language Explanations & Next Steps">
+          <i data-lucide="heart-pulse"></i>
+          <span>Patient-Friendly</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="model-badge" title="Trained on NIH ChestX-ray8 Dataset">
+        <span class="status-dot"></span>
+        <span class="badge-text">Model: <strong>DenseNet-121</strong> (14 Labels)</span>
+      </div>
+      <button id="btnPrintReport" class="btn btn-outline" disabled title="Generate Formal Clinical Radiology Report">
+        <i data-lucide="file-text"></i>
+        <span>Print Report</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sample Quick-Load Strip -->
+  <section class="sample-bar">
+    <div class="sample-label">
+      <i data-lucide="sparkles"></i>
+      <span>Clinical Case Studies:</span>
+    </div>
+    <div class="sample-chips" id="sampleChipsContainer">
+      <div class="chip-skeleton">Loading clinical cases...</div>
+    </div>
+  </section>
+
+  <!-- Main Application Body -->
+  <main class="app-layout">
+    <!-- Left Column: Image Viewer & PACS Controls -->
+    <section class="viewer-section">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i data-lucide="scan"></i>
+          <span>Radiograph & Saliency Viewer</span>
+          <span id="activePathologyTag" class="active-tag hidden">Visualizing: Mass</span>
+        </div>
+        <div class="view-mode-tabs">
+          <button class="view-tab active" data-view="overlay">Blended Overlay</button>
+          <button class="view-tab" data-view="sidebyside">Side-by-Side</button>
+          <button class="view-tab" data-view="original">Original Film</button>
+          <button class="view-tab" data-view="heatmap">Heatmap Only</button>
+          <button class="view-tab" data-view="contour">ROI Box</button>
+        </div>
+      </div>
+
+      <!-- Image Canvas Display Container -->
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <div id="dropZone" class="drop-zone">
+          <div class="drop-content">
+            <div class="upload-icon-wrapper">
+              <i data-lucide="upload-cloud"></i>
+            </div>
+            <h3>Upload Chest X-Ray Radiograph</h3>
+            <p>Drag and drop a patient frontal chest scan (.png, .jpg, .jpeg) or select a sample case above</p>
+            <div class="drop-buttons">
+              <label for="fileInput" class="btn btn-primary">
+                <i data-lucide="folder-open"></i> Browse Files
+              </label>
+              <input type="file" id="fileInput" accept="image/*" class="file-input-hidden">
+            </div>
+            <div class="drop-hint">Supports standard PA/AP projection digital radiography</div>
+          </div>
+        </div>
+
+        <!-- Rendered Image Canvas Container -->
+        <div id="imageDisplayArea" class="image-display-area hidden">
+          <!-- Single View Mode -->
+          <div id="singleViewContainer" class="single-view-container">
+            <div class="canvas-image-container" id="zoomContainer">
+              <img id="primaryViewerImg" src="" alt="Diagnostic Radiograph View">
+              <div id="crosshairOverlay" class="crosshair-overlay"></div>
+            </div>
+          </div>
+
+          <!-- Side-by-side View Mode -->
+          <div id="sideBySideContainer" class="side-by-side-container hidden">
+            <div class="sbs-box">
+              <div class="sbs-badge">Original Radiograph</div>
+              <img id="sbsOriginalImg" src="" alt="Original X-Ray">
+            </div>
+            <div class="sbs-box">
+              <div class="sbs-badge">Grad-CAM Activation Map</div>
+              <img id="sbsHeatmapImg" src="" alt="Grad-CAM Saliency Map">
+            </div>
+          </div>
+
+          <!-- Loading Spinner Overlay -->
+          <div id="analysisSpinner" class="analysis-spinner hidden">
+            <div class="spinner-circle"></div>
+            <div class="spinner-text">Analyzing Radiographic Features with DenseNet-121...</div>
+            <div class="spinner-subtext">Computing activation gradients & pathology probability vectors</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PACS Medical Imaging Controls Toolbar -->
+      <div class="pacs-toolbar" id="pacsToolbar">
+        <div class="control-group">
+          <label><i data-lucide="layers"></i> Heatmap Blend</label>
+          <input type="range" id="sliderOpacity" min="0" max="100" value="45" class="range-slider">
+          <span id="valOpacity" class="slider-val">45%</span>
+        </div>
+
+        <div class="control-group">
+          <label><i data-lucide="filter"></i> Threshold Cutoff</label>
+          <input type="range" id="sliderThreshold" min="0" max="90" value="15" class="range-slider">
+          <span id="valThreshold" class="slider-val">15%</span>
+        </div>
+
+        <div class="control-group">
+          <label><i data-lucide="palette"></i> Palette</label>
+          <select id="selectColormap" class="select-dropdown">
+            <option value="jet">Jet (Thermal Rainbow)</option>
+            <option value="magma" selected>Magma (Clinical Dark)</option>
+            <option value="inferno">Inferno (High Contrast)</option>
+            <option value="turbo">Turbo (Spectral)</option>
+            <option value="viridis">Viridis (Colorblind Safe)</option>
+          </select>
+        </div>
+
+        <div class="control-group actions-group">
+          <button id="btnInvertFilm" class="tool-btn" title="Invert Grayscale (Negative/Positive Film)">
+            <i data-lucide="sun-moon"></i> Invert
+          </button>
+          <button id="btnResetView" class="tool-btn" title="Reset Zoom and Windowing">
+            <i data-lucide="rotate-ccw"></i> Reset
+          </button>
+          <button id="btnNewScan" class="tool-btn btn-highlight" title="Upload a New Image">
+            <i data-lucide="plus-circle"></i> New Scan
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Diagnostic Graphs & Clinical Findings -->
+    <section class="diagnostic-section">
+      <!-- Top Diagnostic Finding Summary Card -->
+      <div class="card summary-card" id="topSummaryCard">
+        <div class="summary-top-row">
+          <div class="summary-title-col">
+            <span class="summary-pre">Primary AI Finding</span>
+            <h2 id="topPathologyName" class="top-pathology">Ready for Analysis</h2>
+          </div>
+          <div class="summary-score-col">
+            <div id="topConfidenceMeter" class="confidence-circle" data-val="0">
+              <span id="topConfidenceText" class="conf-percent">--%</span>
+              <span class="conf-lbl">Probability</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="riskBadge" class="risk-badge badge-neutral">Awaiting Radiograph Upload</div>
+
+        <p id="clinicalImpressionText" class="impression-text">
+          Upload a patient chest radiograph or choose a sample clinical case study above to perform multi-label pathology classification and Grad-CAM localized anatomical heatmapping.
+        </p>
+
+        <div class="metrics-row" id="metricsRow">
+          <div class="metric-item">
+            <span class="metric-label">Model Architecture</span>
+            <span class="metric-val">DenseNet-121</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Classification Scope</span>
+            <span class="metric-val">14 Pathologies</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Inference Time</span>
+            <span id="valInferenceTime" class="metric-val">-- ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Probability Graphs & Differential Diagnosis -->
+      <div class="card chart-card">
+        <div class="card-header">
+          <div class="card-title">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Pathology Probability Spectrum</span>
+          </div>
+          <div class="chart-subtitle">Click any bar to re-focus Grad-CAM heatmap on that condition</div>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="filter-pills" id="filterPills">
+          <button class="pill active" data-filter="all">All 14 Conditions</button>
+          <button class="pill" data-filter="Cardiovascular">Cardiac</button>
+          <button class="pill" data-filter="Infectious">Infiltrates & Infection</button>
+          <button class="pill" data-filter="Pleural">Pleural</button>
+          <button class="pill" data-filter="Lesion">Lesions / Mass</button>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="pathologyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Detailed Findings & Clinical Explanations Card -->
+      <div class="card findings-card">
+        <div class="card-header">
+          <div class="card-title">
+            <i data-lucide="file-search"></i>
+            <span id="findingsTitle">Clinical Interpretation & Guidance</span>
+          </div>
+          <span class="findings-mode-tag" id="findingsModeTag">Doctor Mode</span>
+        </div>
+
+        <!-- Dynamic Content injected based on Active Mode (Doctor vs Patient) -->
+        <div id="findingsContainer" class="findings-content">
+          <div class="empty-state">
+            <i data-lucide="clipboard-list"></i>
+            <p>Upload a chest radiograph to view detailed anatomical findings, diagnostic differential, and recommended clinical management.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Printable Clinical Radiology Report Modal -->
+  <div id="reportModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="report-header-brand">
+          <i data-lucide="activity"></i>
+          <div>
+            <h3>PULMOSCAN AI - DIAGNOSTIC RADIOLOGY REPORT</h3>
+            <span>Automated Deep Learning Multi-Label Classification & Grad-CAM Analysis</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="btnExecutePrint" class="btn btn-primary"><i data-lucide="printer"></i> Print / Save PDF</button>
+          <button id="btnCloseModal" class="btn btn-icon"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+
+      <div class="report-body" id="printableReportContent">
+        <!-- Patient & Exam Meta Grid -->
+        <div class="report-grid">
+          <div class="report-meta-box">
+            <strong>Exam Type:</strong> Chest Radiograph (PA/AP Frontal Projection)<br>
+            <strong>Date / Time:</strong> <span id="reportDate">--</span><br>
+            <strong>Scan ID:</strong> <span id="reportScanId">PX-2026-X8</span>
+          </div>
+          <div class="report-meta-box">
+            <strong>AI Engine:</strong> DenseNet-121 Deep Convolutional Network<br>
+            <strong>Interpretation Method:</strong> Grad-CAM (conv5_block16_concat)<br>
+            <strong>Status:</strong> Completed & Verified
+          </div>
+        </div>
+
+        <!-- Embedded Visuals -->
+        <div class="report-visuals-grid">
+          <div class="report-img-box">
+            <div class="report-img-caption">Original Patient Radiograph</div>
+            <img id="reportOriginalImg" src="" alt="Original X-Ray">
+          </div>
+          <div class="report-img-box">
+            <div class="report-img-caption">AI Grad-CAM Saliency Region of Interest</div>
+            <img id="reportOverlayImg" src="" alt="Grad-CAM Overlay">
+          </div>
+        </div>
+
+        <!-- Radiology Impression Summary -->
+        <div class="report-section">
+          <h4>RADIOLOGICAL IMPRESSION & FINDINGS</h4>
+          <p id="reportImpressionText">Impression will appear here.</p>
+        </div>
+
+        <!-- Quantitative Pathology Table -->
+        <div class="report-section">
+          <h4>QUANTITATIVE PATHOLOGY PROBABILITY MATRIX</h4>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Pathology</th>
+                <th>Classification</th>
+                <th>Probability</th>
+                <th>Risk Category</th>
+                <th>Clinical Recommendation</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Medical Disclaimer -->
+        <div class="report-disclaimer">
+          <strong>Notice:</strong> This automated report is generated by an artificial intelligence diagnostic assistant (DenseNet-121) trained on the NIH ChestX-ray8 dataset. It is intended to assist medical practitioners in clinical review and error analysis. Findings must be verified by a board-certified radiologist.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
