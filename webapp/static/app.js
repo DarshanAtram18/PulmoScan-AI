@@ -271,6 +271,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const analysisSpinner = document.getElementById('analysisSpinner');
   const activePathologyTag = document.getElementById('activePathologyTag');
 
+  // Explicit UI Error State Elements (Requirement 2)
+  const uploadErrorState = document.getElementById('uploadErrorState');
+  const errorStateTitle = document.getElementById('errorStateTitle');
+  const errorStateDesc = document.getElementById('errorStateDesc');
+  const errorStateBadge = document.getElementById('errorStateBadge');
+  const btnRetryUpload = document.getElementById('btnRetryUpload');
+  const btnChooseAnotherFile = document.getElementById('btnChooseAnotherFile');
+
   // Progressive-Disclosure Analysis Controls
   const btnViewOriginal = document.getElementById('btnViewOriginal');
   const btnViewHeatmap = document.getElementById('btnViewHeatmap');
@@ -531,13 +539,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sampleChipsContainer.innerHTML = '';
     samples.forEach((sample, idx) => {
-      const chip = document.createElement('div');
+      const chip = document.createElement('button');
+      chip.type = 'button';
       chip.className = `sample-chip ${idx === 0 ? 'active' : ''}`;
+      chip.setAttribute('aria-label', `Analyze clinical case study: ${sample.title}`);
       chip.innerHTML = `
         <i data-lucide="file-badge"></i>
         <span>${sample.title}</span>
       `;
       chip.addEventListener('click', () => {
+        resetUploadState();
         document.querySelectorAll('.sample-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
         analyzeSample(sample);
@@ -571,6 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function analyzeSample(sample) {
+    resetUploadState();
     dropZone.classList.add('hidden');
     imageDisplayArea.classList.remove('hidden');
     updateSpinnerCopy();
@@ -579,15 +591,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleanFilename = sample.filename || (sample.id ? sample.id.replace('case_', '') : '00025288_001.png');
     const imgUrl = sample.url || `samples/${cleanFilename}`;
 
-    // 1. Try local or remote API first
+    // 1. Try local or remote API first with 10s timeout
     let apiSuccess = false;
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       const formData = new FormData();
       formData.append('sample_id', cleanFilename);
-      const res = await fetch('/api/predict', { method: 'POST', body: formData });
+      const res = await fetch('/api/predict', { method: 'POST', body: formData, signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.images && data.images.original.startsWith('data:')) {
+        if (data.success && data.images && data.images.original && data.images.original.startsWith('data:')) {
           apiSuccess = true;
           state.activeData = data;
           state.currentBase64 = data.images.original;
@@ -599,12 +614,19 @@ document.addEventListener('DOMContentLoaded', () => {
             renderResults(data, sample);
             analysisSpinner.classList.add('hidden');
           };
+          img.onerror = () => {
+            showUploadError({
+              title: "Radiograph Display Error",
+              message: "The processed radiograph could not be rendered in the viewer. Please try another sample.",
+              badge: "Image decoding failed"
+            });
+          };
           img.src = data.images.original;
           return;
         }
       }
     } catch (e) {
-      console.log('API not active, falling back to client-side clinical engine');
+      console.log('API not active or timed out, falling back to client-side clinical engine');
     }
 
     // 2. Client-Side Medical Engine fallback
@@ -647,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = {
         success: true,
         processing_time_ms: 215,
-        image_dimensions: { width: img.naturalWidth, height: img.naturalHeight },
+        image_dimensions: { width: img.naturalWidth || 1024, height: img.naturalHeight || 1024 },
         top_pathology: topLabel,
         top_probability: results[0].probability,
         active_gradcam_label: topLabel,
@@ -665,8 +687,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     img.onerror = () => {
-      analysisSpinner.classList.add('hidden');
-      alert(`Could not load sample image from: ${imgUrl}`);
+      showUploadError({
+        title: "Sample Image Load Error",
+        message: `Could not load sample case image (${cleanFilename}). Please verify your network connection or select another case.`,
+        badge: "HTTP 404 / Network error"
+      });
     };
     img.src = imgUrl;
   }
@@ -697,31 +722,158 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  btnNewScan.addEventListener('click', () => {
-    dropZone.classList.remove('hidden');
+  // --------------------------------------------------------------------------
+  // 5. File Upload Handling & Error States (Requirement 2)
+  // --------------------------------------------------------------------------
+  function showUploadError({ title, message, badge }) {
+    analysisSpinner.classList.add('hidden');
     imageDisplayArea.classList.add('hidden');
-    fileInput.value = '';
+    dropZone.classList.add('hidden');
+
+    if (errorStateTitle) errorStateTitle.textContent = title;
+    if (errorStateDesc) errorStateDesc.textContent = message;
+    if (errorStateBadge) errorStateBadge.textContent = badge;
+
+    if (uploadErrorState) uploadErrorState.classList.remove('hidden');
+
+    // Update summary card to clearly indicate interrupted state
+    if (topPathologyName) topPathologyName.textContent = 'Analysis Interrupted';
+    if (topConfidenceText) topConfidenceText.textContent = '--%';
+    if (topConfidenceMeter) topConfidenceMeter.style.background = 'conic-gradient(var(--border-card) 0deg, var(--border-card) 0deg)';
+    if (riskBadge) {
+      riskBadge.className = 'risk-badge badge-warning';
+      riskBadge.innerHTML = '<i data-lucide="alert-triangle"></i> Action Required';
+    }
+    if (clinicalImpressionText) clinicalImpressionText.innerHTML = `<strong>Status Notice:</strong> ${message}`;
+    if (valInferenceTime) valInferenceTime.textContent = '-- ms';
+    if (activePathologyTag) activePathologyTag.classList.add('hidden');
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function resetUploadState() {
+    if (uploadErrorState) uploadErrorState.classList.add('hidden');
+    if (dropZone) dropZone.classList.remove('hidden');
+    if (imageDisplayArea) imageDisplayArea.classList.add('hidden');
+    if (fileInput) fileInput.value = '';
+  }
+
+  if (btnRetryUpload) {
+    btnRetryUpload.addEventListener('click', resetUploadState);
+  }
+  if (btnChooseAnotherFile) {
+    btnChooseAnotherFile.addEventListener('click', resetUploadState);
+  }
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleCustomFileUpload(e.dataTransfer.files[0]);
+    } else {
+      showUploadError({
+        title: "No File Selected",
+        message: "No radiograph data was detected in the dropped item. Please drag and drop an image file or browse from your computer.",
+        badge: "0 files detected"
+      });
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleCustomFileUpload(e.target.files[0]);
+    } else {
+      showUploadError({
+        title: "No File Selected",
+        message: "No radiograph image was chosen. Please click 'Browse Files' to select a chest X-ray from your computer.",
+        badge: "No file chosen"
+      });
+    }
+  });
+
+  btnNewScan.addEventListener('click', () => {
+    resetUploadState();
     document.querySelectorAll('.sample-chip').forEach(c => c.classList.remove('active'));
   });
 
   function handleCustomFileUpload(file) {
+    // 1. Check for empty / no file (Requirement 2)
+    if (!file || file.size === 0) {
+      showUploadError({
+        title: "No File Selected",
+        message: "The selected file is empty (0 bytes). Please choose a valid frontal chest X-ray image file.",
+        badge: "0 bytes detected"
+      });
+      return;
+    }
+
+    // 2. Check file format (wrong format error - Requirement 2)
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+    const lowerName = file.name ? file.name.toLowerCase() : '';
+    const hasValidExt = validExtensions.some(ext => lowerName.endsWith(ext));
+    const hasValidMime = file.type ? file.type.startsWith('image/') : false;
+
+    if (!hasValidExt && !hasValidMime) {
+      const ext = file.name ? file.name.split('.').pop() : 'unknown';
+      showUploadError({
+        title: "Unsupported File Format",
+        message: "The selected file is not a supported image. PulmoScan AI accepts standard frontal chest radiograph files in PNG, JPG, or JPEG format.",
+        badge: `Received: .${ext} • Expected: .png, .jpg, .jpeg`
+      });
+      return;
+    }
+
+    // 3. Check file size (file too large - Requirement 2)
+    const MAX_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB limit
+    if (file.size > MAX_SIZE_BYTES) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      showUploadError({
+        title: "File Size Exceeds Limit",
+        message: `The selected radiograph (${sizeMB} MB) exceeds the 15 MB maximum size limit. Please upload a standard compressed image for fast analysis.`,
+        badge: `Size: ${sizeMB} MB • Max: 15 MB`
+      });
+      return;
+    }
+
+    // Passed pre-validation -> proceed to analysis
+    if (uploadErrorState) uploadErrorState.classList.add('hidden');
     dropZone.classList.add('hidden');
     imageDisplayArea.classList.remove('hidden');
     updateSpinnerCopy();
     analysisSpinner.classList.remove('hidden');
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      showUploadError({
+        title: "File Read Failure",
+        message: "Unable to read the selected file from your device. Please verify file permissions or try another image.",
+        badge: "FileReader error"
+      });
+    };
+
     reader.onload = async (event) => {
       const dataUrl = event.target.result;
 
-      // 1. Try local Python Flask backend if available
+      // 1. Try local Python Flask backend if available (12-second abort timeout)
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
         const formData = new FormData();
         formData.append('image', file);
-        const res = await fetch('/api/predict', { method: 'POST', body: formData });
+        const res = await fetch('/api/predict', { method: 'POST', body: formData, signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const apiData = await res.json();
-          if (apiData.success && apiData.images && apiData.images.original.startsWith('data:')) {
+          if (apiData.success && apiData.images && apiData.images.original && apiData.images.original.startsWith('data:')) {
             state.activeData = apiData;
             state.currentBase64 = apiData.images.original;
             state.activeGradcamPathology = apiData.active_gradcam_label;
@@ -732,116 +884,142 @@ document.addEventListener('DOMContentLoaded', () => {
               renderResults(apiData);
               analysisSpinner.classList.add('hidden');
             };
+            img.onerror = () => {
+              showUploadError({
+                title: "Image Rendering Error",
+                message: "The AI model returned an analysis response, but the resulting image could not be decoded for display.",
+                badge: "Bitmap decoding failure"
+              });
+            };
             img.src = apiData.images.original;
             return;
           }
         }
       } catch (err) {
-        console.log('Backend not reachable; analyzing in-browser with client-side vision model');
+        console.log('Backend not reachable or timed out; analyzing in-browser with client-side vision model:', err);
       }
 
       // 2. In-browser client analysis for uploaded image
       const img = new Image();
       img.onload = () => {
-        state.currentImageElement = img;
+        try {
+          state.currentImageElement = img;
 
-        // Perform luminance and thoracic asymmetry analysis
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, 128, 128);
-        const imgData = ctx.getImageData(0, 0, 128, 128).data;
+          // Perform luminance and thoracic asymmetry analysis
+          const canvas = document.createElement('canvas');
+          canvas.width = 128;
+          canvas.height = 128;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, 128, 128);
+          const imgData = ctx.getImageData(0, 0, 128, 128).data;
 
-        let totalBrightness = 0, leftBrightness = 0, rightBrightness = 0, lowerBrightness = 0;
-        for (let y = 0; y < 128; y++) {
-          for (let x = 0; x < 128; x++) {
-            const idx = (y * 128 + x) * 4;
-            const b = (imgData[idx] + imgData[idx + 1] + imgData[idx + 2]) / 3;
-            totalBrightness += b;
-            if (x < 64) leftBrightness += b; else rightBrightness += b;
-            if (y > 70) lowerBrightness += b;
+          let totalBrightness = 0, leftBrightness = 0, rightBrightness = 0, lowerBrightness = 0;
+          for (let y = 0; y < 128; y++) {
+            for (let x = 0; x < 128; x++) {
+              const idx = (y * 128 + x) * 4;
+              const b = (imgData[idx] + imgData[idx + 1] + imgData[idx + 2]) / 3;
+              totalBrightness += b;
+              if (x < 64) leftBrightness += b; else rightBrightness += b;
+              if (y > 70) lowerBrightness += b;
+            }
           }
-        }
-        const meanB = totalBrightness / (128 * 128);
-        const asym = Math.abs(leftBrightness - rightBrightness) / (totalBrightness || 1);
-        const lowerRatio = lowerBrightness / (totalBrightness || 1);
+          const meanB = totalBrightness / (128 * 128);
+          const asym = Math.abs(leftBrightness - rightBrightness) / (totalBrightness || 1);
+          const lowerRatio = lowerBrightness / (totalBrightness || 1);
 
-        // Derive probability vector
-        const massProb = Math.min(0.92, Math.max(0.12, 0.45 + asym * 2.5));
-        const cardioProb = Math.min(0.94, Math.max(0.10, 0.30 + (lowerRatio > 0.52 ? 0.35 : 0.05)));
-        const effProb = Math.min(0.89, Math.max(0.08, 0.25 + lowerRatio * 0.4));
-        const consolProb = Math.min(0.85, Math.max(0.15, massProb * 0.75));
-        const infilProb = Math.min(0.88, Math.max(0.20, (meanB > 110 ? 0.65 : 0.35)));
+          // Derive probability vector
+          const massProb = Math.min(0.92, Math.max(0.12, 0.45 + asym * 2.5));
+          const cardioProb = Math.min(0.94, Math.max(0.10, 0.30 + (lowerRatio > 0.52 ? 0.35 : 0.05)));
+          const effProb = Math.min(0.89, Math.max(0.08, 0.25 + lowerRatio * 0.4));
+          const consolProb = Math.min(0.85, Math.max(0.15, massProb * 0.75));
+          const infilProb = Math.min(0.88, Math.max(0.20, (meanB > 110 ? 0.65 : 0.35)));
 
-        const customProbs = {
-          Mass: +massProb.toFixed(3),
-          Cardiomegaly: +cardioProb.toFixed(3),
-          Effusion: +effProb.toFixed(3),
-          Consolidation: +consolProb.toFixed(3),
-          Infiltration: +infilProb.toFixed(3),
-          Atelectasis: +(effProb * 0.7).toFixed(3),
-          Pneumothorax: +(asym * 1.2 + 0.08).toFixed(3),
-          Edema: +(cardioProb * 0.65).toFixed(3),
-          Pneumonia: +(consolProb * 0.72).toFixed(3),
-          Nodule: +(massProb * 0.45).toFixed(3),
-          Pleural_Thickening: 0.185,
-          Fibrosis: 0.110,
-          Emphysema: 0.065,
-          Hernia: 0.025
-        };
-
-        const results = LABELS.map((lbl, idx) => {
-          const prob = customProbs[lbl] || 0.10;
-          const info = CLINICAL_KNOWLEDGE[lbl] || {};
-          const thresh = info.severity_threshold || 0.35;
-          let risk = 'Low', badge = 'success';
-          if (prob >= 0.50) { risk = 'High'; badge = 'danger'; }
-          else if (prob >= thresh) { risk = 'Moderate'; badge = 'warning'; }
-
-          return {
-            index: idx,
-            pathology: lbl,
-            probability: prob,
-            percentage: +(prob * 100).toFixed(1),
-            risk_level: risk,
-            badge_color: badge,
-            system: info.system || 'Thoracic',
-            doctor_insight: info.doctor_insight || '',
-            patient_explanation: info.patient_explanation || '',
-            next_steps: info.next_steps || ''
+          const customProbs = {
+            Mass: +massProb.toFixed(3),
+            Cardiomegaly: +cardioProb.toFixed(3),
+            Effusion: +effProb.toFixed(3),
+            Consolidation: +consolProb.toFixed(3),
+            Infiltration: +infilProb.toFixed(3),
+            Atelectasis: +(effProb * 0.7).toFixed(3),
+            Pneumothorax: +(asym * 1.2 + 0.08).toFixed(3),
+            Edema: +(cardioProb * 0.65).toFixed(3),
+            Pneumonia: +(consolProb * 0.72).toFixed(3),
+            Nodule: +(massProb * 0.45).toFixed(3),
+            Pleural_Thickening: 0.185,
+            Fibrosis: 0.110,
+            Emphysema: 0.065,
+            Hernia: 0.025
           };
-        }).sort((a, b) => b.probability - a.probability);
 
-        const top = results[0];
-        const generatedImages = generateClientSideGradcam(img, top.pathology, state.opacity, state.threshold, state.colormap);
+          const results = LABELS.map((lbl, idx) => {
+            const prob = customProbs[lbl] || 0.10;
+            const info = CLINICAL_KNOWLEDGE[lbl] || {};
+            const thresh = info.severity_threshold || 0.35;
+            let risk = 'Low', badge = 'success';
+            if (prob >= 0.50) { risk = 'High'; badge = 'danger'; }
+            else if (prob >= thresh) { risk = 'Moderate'; badge = 'warning'; }
 
-        const critical = results.filter(r => r.risk_level === 'High' || r.risk_level === 'Moderate');
-        const clinical_impression = critical.length > 0
-          ? `AI-estimated elevated likelihood for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Saliency region localized via Grad-CAM. (Educational demonstration — not clinically verified).`
-          : 'No elevated pathological likelihoods detected above baseline thresholds in this automated demo run.';
+            return {
+              index: idx,
+              pathology: lbl,
+              probability: prob,
+              percentage: +(prob * 100).toFixed(1),
+              risk_level: risk,
+              badge_color: badge,
+              system: info.system || 'Thoracic',
+              doctor_insight: info.doctor_insight || '',
+              patient_explanation: info.patient_explanation || '',
+              next_steps: info.next_steps || ''
+            };
+          }).sort((a, b) => b.probability - a.probability);
 
-        const data = {
-          success: true,
-          processing_time_ms: 240,
-          image_dimensions: { width: img.naturalWidth, height: img.naturalHeight },
-          top_pathology: top.pathology,
-          top_probability: top.probability,
-          active_gradcam_label: top.pathology,
-          clinical_impression,
-          pathologies: results,
-          images: generatedImages
-        };
+          const top = results[0];
+          const generatedImages = generateClientSideGradcam(img, top.pathology, state.opacity, state.threshold, state.colormap);
 
-        state.activeData = data;
-        state.currentBase64 = generatedImages.original;
-        state.activeGradcamPathology = top.pathology;
+          const critical = results.filter(r => r.risk_level === 'High' || r.risk_level === 'Moderate');
+          const clinical_impression = critical.length > 0
+            ? `AI-estimated elevated likelihood for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Saliency region localized via Grad-CAM. (Educational demonstration — not clinically verified).`
+            : 'No elevated pathological likelihoods detected above baseline thresholds in this automated demo run.';
 
-        renderResults(data);
-        analysisSpinner.classList.add('hidden');
+          const data = {
+            success: true,
+            processing_time_ms: 240,
+            image_dimensions: { width: img.naturalWidth || 1024, height: img.naturalHeight || 1024 },
+            top_pathology: top.pathology,
+            top_probability: top.probability,
+            active_gradcam_label: top.pathology,
+            clinical_impression,
+            pathologies: results,
+            images: generatedImages
+          };
+
+          state.activeData = data;
+          state.currentBase64 = generatedImages.original;
+          state.activeGradcamPathology = top.pathology;
+
+          renderResults(data);
+          analysisSpinner.classList.add('hidden');
+        } catch (procErr) {
+          console.error('Client processing error:', procErr);
+          showUploadError({
+            title: "Analysis Failure",
+            message: "An internal processing error occurred while generating feature maps for this image. Please try another radiograph.",
+            badge: "Client processing error"
+          });
+        }
       };
+
+      img.onerror = () => {
+        showUploadError({
+          title: "Image Decode Failure",
+          message: "The uploaded file could not be decoded as an image. The file may be damaged or incomplete.",
+          badge: "Invalid image data"
+        });
+      };
+
       img.src = dataUrl;
     };
+
     reader.readAsDataURL(file);
   }
 
@@ -852,7 +1030,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPrintReport.removeAttribute('disabled');
 
     sbsOriginalImg.src = data.images.original;
+    sbsOriginalImg.alt = `Original frontal chest radiograph for ${data.top_pathology} case`;
     sbsHeatmapImg.src = data.images.heatmap;
+    sbsHeatmapImg.alt = `Grad-CAM activation heatmap overlay highlighting ${data.active_gradcam_label}`;
+    primaryViewerImg.alt = `Frontal chest radiograph displaying ${data.active_gradcam_label} saliency heatmap`;
+
     updatePrimaryImageView();
 
     activePathologyTag.textContent = `Visualizing Grad-CAM: ${data.active_gradcam_label}`;
@@ -1588,8 +1770,19 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
+      div.setAttribute('tabindex', '0');
+      div.setAttribute('role', 'button');
+      div.setAttribute('aria-label', `Select ${title} finding with ${item.percentage}% probability to view Grad-CAM overlay`);
+
       div.addEventListener('click', () => {
         switchGradcamTarget(item.pathology);
+      });
+
+      div.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          switchGradcamTarget(item.pathology);
+        }
       });
 
       findingsContainer.appendChild(div);
@@ -1681,10 +1874,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     reportModal.classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
+    if (btnCloseModal) btnCloseModal.focus();
   });
 
   btnCloseModal.addEventListener('click', () => {
     reportModal.classList.add('hidden');
+    if (btnPrintReport) btnPrintReport.focus();
+  });
+
+  // Close modal on Escape key press (Accessibility requirement 3)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && reportModal && !reportModal.classList.contains('hidden')) {
+      reportModal.classList.add('hidden');
+      if (btnPrintReport) btnPrintReport.focus();
+    }
   });
 
   btnExecutePrint.addEventListener('click', () => {

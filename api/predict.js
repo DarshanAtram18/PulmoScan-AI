@@ -247,8 +247,8 @@ export default function handler(req, res) {
   const top = results[0];
   const critical = results.filter(r => r.risk_level === 'High' || r.risk_level === 'Moderate');
   const clinical_impression = critical.length > 0
-    ? `Elevated clinical risk detected for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Anatomic region highlighted via Grad-CAM saliency mapping.`
-    : 'No critical pathological abnormalities detected. Lung volumes and cardiac borders are within normal baseline thresholds.';
+    ? `AI-estimated elevated likelihood for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Saliency region localized via Grad-CAM. (Educational demonstration — not clinically verified).`
+    : 'No elevated pathological likelihoods detected above baseline thresholds in this automated demo run.';
 
   const imgUrl = `/samples/${cleanId}`;
 
