@@ -6,10 +6,10 @@
   <title>PulmoScan AI - Deep Learning Chest X-Ray Diagnosis & Grad-CAM</title>
   <meta name="description" content="State-of-the-art AI medical diagnosis platform for 14 chest pathologies with real-time Grad-CAM heatmap visualization and clinical reports.">
   
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
   <!-- Chart.js for Interactive Diagnostic Graphs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -19,7 +19,7 @@
 
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="mode-doctor">
   <!-- Top Navigation Bar -->
   <header class="navbar">
     <div class="nav-brand">
@@ -29,20 +29,6 @@
       <div class="brand-text">
         <div class="brand-title">PULMO<span class="highlight">SCAN</span> AI</div>
         <div class="brand-subtitle">DenseNet-121 Radiographic Diagnostic Studio & Grad-CAM</div>
-      </div>
-    </div>
-
-    <!-- Active Mode Switcher -->
-    <div class="nav-center">
-      <div class="mode-toggle-group">
-        <button id="btnDoctorMode" class="mode-btn active" title="Detailed Radiologic Insights, AUCs & Fleischner Guidelines">
-          <i data-lucide="stethoscope"></i>
-          <span>Doctor / Specialist</span>
-        </button>
-        <button id="btnPatientMode" class="mode-btn" title="Clear, Plain-Language Explanations & Next Steps">
-          <i data-lucide="heart-pulse"></i>
-          <span>Patient-Friendly</span>
-        </button>
       </div>
     </div>
 
@@ -58,6 +44,28 @@
     </div>
   </header>
 
+  <!-- Prominent Mode Toggle Strip Directly Below Page Title -->
+  <section class="mode-banner">
+    <div class="mode-banner-container">
+      <div class="mode-banner-left">
+        <span class="mode-banner-label">Diagnostic Perspective:</span>
+        <div class="mode-toggle-group">
+          <button id="btnDoctorMode" class="mode-btn active" title="Detailed Radiologic Insights, AUCs & Full Technical Controls">
+            <i data-lucide="stethoscope"></i>
+            <span>Doctor / Specialist</span>
+          </button>
+          <button id="btnPatientMode" class="mode-btn" title="Plain-Language Explanations & Focused Findings">
+            <i data-lucide="heart-pulse"></i>
+            <span>Patient-Friendly</span>
+          </button>
+        </div>
+      </div>
+      <div class="mode-banner-hint" id="modeDescriptionHint">
+        Specialist view: full 14-pathology spectrum, progressive PACS controls, and clinical workups
+      </div>
+    </div>
+  </section>
+
   <!-- Sample Quick-Load Strip -->
   <section class="sample-bar">
     <div class="sample-label">
@@ -71,20 +79,13 @@
 
   <!-- Main Application Body -->
   <main class="app-layout">
-    <!-- Left Column: Image Viewer & PACS Controls -->
+    <!-- Left Column: Image Viewer & Analysis Controls -->
     <section class="viewer-section">
       <div class="panel-header">
         <div class="panel-title">
           <i data-lucide="scan"></i>
           <span>Radiograph & Saliency Viewer</span>
           <span id="activePathologyTag" class="active-tag hidden">Visualizing: Mass</span>
-        </div>
-        <div class="view-mode-tabs">
-          <button class="view-tab active" data-view="overlay">Blended Overlay</button>
-          <button class="view-tab" data-view="sidebyside">Side-by-Side</button>
-          <button class="view-tab" data-view="original">Original Film</button>
-          <button class="view-tab" data-view="heatmap">Heatmap Only</button>
-          <button class="view-tab" data-view="contour">ROI Box</button>
         </div>
       </div>
 
@@ -138,42 +139,84 @@
         </div>
       </div>
 
-      <!-- PACS Medical Imaging Controls Toolbar -->
-      <div class="pacs-toolbar" id="pacsToolbar">
-        <div class="control-group">
-          <label><i data-lucide="layers"></i> Heatmap Blend</label>
-          <input type="range" id="sliderOpacity" min="0" max="100" value="45" class="range-slider">
-          <span id="valOpacity" class="slider-val">45%</span>
-        </div>
-
-        <div class="control-group">
-          <label><i data-lucide="filter"></i> Threshold Cutoff</label>
-          <input type="range" id="sliderThreshold" min="0" max="90" value="15" class="range-slider">
-          <span id="valThreshold" class="slider-val">15%</span>
-        </div>
-
-        <div class="control-group">
-          <label><i data-lucide="palette"></i> Palette</label>
-          <select id="selectColormap" class="select-dropdown">
-            <option value="jet">Jet (Thermal Rainbow)</option>
-            <option value="magma" selected>Magma (Clinical Dark)</option>
-            <option value="inferno">Inferno (High Contrast)</option>
-            <option value="turbo">Turbo (Spectral)</option>
-            <option value="viridis">Viridis (Colorblind Safe)</option>
-          </select>
-        </div>
-
-        <div class="control-group actions-group">
-          <button id="btnInvertFilm" class="tool-btn" title="Invert Grayscale (Negative/Positive Film)">
-            <i data-lucide="sun-moon"></i> Invert
-          </button>
-          <button id="btnResetView" class="tool-btn" title="Reset Zoom and Windowing">
-            <i data-lucide="rotate-ccw"></i> Reset
-          </button>
+      <!-- Progressive-Disclosure Analysis Controls Panel -->
+      <div class="analysis-controls-panel" id="analysisControlsPanel">
+        <div class="controls-header">
+          <span class="controls-title"><i data-lucide="sliders-horizontal"></i> Analysis Controls</span>
           <button id="btnNewScan" class="tool-btn btn-highlight" title="Upload a New Image">
             <i data-lucide="plus-circle"></i> New Scan
           </button>
         </div>
+
+        <div class="controls-primary-bar">
+          <!-- 1. Single toggle: "Original ↔ Heatmap" -->
+          <div class="control-unit">
+            <span class="control-unit-label">Display:</span>
+            <div class="segmented-switch" id="viewSwitchGroup">
+              <button type="button" class="switch-btn" id="btnViewOriginal" data-view="original">Original</button>
+              <button type="button" class="switch-btn active" id="btnViewHeatmap" data-view="heatmap">Heatmap</button>
+            </div>
+          </div>
+
+          <!-- Separate "Compare side-by-side" checkbox -->
+          <label class="control-checkbox" title="Show Original film and Heatmap side-by-side">
+            <input type="checkbox" id="checkSideBySide">
+            <span class="checkbox-custom"></span>
+            <span>Compare side-by-side</span>
+          </label>
+
+          <!-- Fold "ROI Box" in as an overlay toggle (Doctor mode) -->
+          <label class="control-checkbox doctor-only" id="roiBoxControl" title="Show Target ROI bounding box over peak activation">
+            <input type="checkbox" id="checkRoiBox">
+            <span class="checkbox-custom"></span>
+            <span>Target ROI box</span>
+          </label>
+
+          <!-- 2. Reduced colormap options: default Viridis, Jet alternative (Doctor mode) -->
+          <div class="control-unit doctor-only" id="paletteControlUnit">
+            <span class="control-unit-label">Palette:</span>
+            <select id="selectColormap" class="select-dropdown">
+              <option value="viridis" selected>Viridis (Colorblind-Safe)</option>
+              <option value="jet">Jet (Thermal)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 3. Collapsed "Advanced controls" disclosure panel (closed by default) -->
+        <details class="advanced-disclosure doctor-only" id="advancedDisclosure">
+          <summary class="advanced-summary">
+            <span class="summary-title"><i data-lucide="sliders"></i> Advanced controls</span>
+            <i data-lucide="chevron-down" class="chevron-icon"></i>
+          </summary>
+          <div class="advanced-body">
+            <div class="sliders-grid">
+              <div class="control-slider-group">
+                <div class="slider-header">
+                  <label for="sliderOpacity"><i data-lucide="layers"></i> Heatmap Blend</label>
+                  <span id="valOpacity" class="slider-val">45%</span>
+                </div>
+                <input type="range" id="sliderOpacity" min="0" max="100" value="45" class="range-slider">
+              </div>
+
+              <div class="control-slider-group">
+                <div class="slider-header">
+                  <label for="sliderThreshold"><i data-lucide="filter"></i> Threshold Cutoff</label>
+                  <span id="valThreshold" class="slider-val">15%</span>
+                </div>
+                <input type="range" id="sliderThreshold" min="0" max="90" value="15" class="range-slider">
+              </div>
+            </div>
+
+            <div class="advanced-actions-row">
+              <button id="btnInvertFilm" type="button" class="tool-btn" title="Invert Grayscale (Negative/Positive Film)">
+                <i data-lucide="sun-moon"></i> Invert Film
+              </button>
+              <button id="btnResetView" type="button" class="tool-btn" title="Reset Zoom, Windowing and Blend Defaults">
+                <i data-lucide="rotate-ccw"></i> Reset Defaults
+              </button>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -221,13 +264,13 @@
         <div class="card-header">
           <div class="card-title">
             <i data-lucide="bar-chart-3"></i>
-            <span>Pathology Probability Spectrum</span>
+            <span id="chartCardTitle">Pathology Probability Spectrum</span>
           </div>
-          <div class="chart-subtitle">Click any bar to re-focus Grad-CAM heatmap on that condition</div>
+          <div class="chart-subtitle" id="chartSubtitle">Click any bar to re-focus Grad-CAM heatmap on that condition</div>
         </div>
 
-        <!-- Category Filters -->
-        <div class="filter-pills" id="filterPills">
+        <!-- Category Filters (Doctor mode only) -->
+        <div class="filter-pills doctor-only" id="filterPills">
           <button class="pill active" data-filter="all">All 14 Conditions</button>
           <button class="pill" data-filter="Cardiovascular">Cardiac</button>
           <button class="pill" data-filter="Infectious">Infiltrates & Infection</button>
@@ -247,7 +290,7 @@
             <i data-lucide="file-search"></i>
             <span id="findingsTitle">Clinical Interpretation & Guidance</span>
           </div>
-          <span class="findings-mode-tag" id="findingsModeTag">Doctor Mode</span>
+          <span class="findings-mode-tag" id="findingsModeTag">Specialist View</span>
         </div>
 
         <!-- Dynamic Content injected based on Active Mode (Doctor vs Patient) -->
@@ -311,8 +354,8 @@
           <p id="reportImpressionText">Impression will appear here.</p>
         </div>
 
-        <!-- Quantitative Pathology Table -->
-        <div class="report-section">
+        <!-- Quantitative Pathology Table (Doctor mode only) -->
+        <div class="report-section doctor-only" id="reportProbabilityTableSection">
           <h4>QUANTITATIVE PATHOLOGY PROBABILITY MATRIX</h4>
           <table class="report-table">
             <thead>

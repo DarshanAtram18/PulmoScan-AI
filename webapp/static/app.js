@@ -119,6 +119,24 @@ document.addEventListener('DOMContentLoaded', () => {
     'Pneumonia', 'Fibrosis', 'Edema', 'Consolidation'
   ];
 
+  // Plain-Language Clinical Pathology Map for Patient Mode
+  const PATIENT_FRIENDLY_NAMES = {
+    Cardiomegaly: 'Enlarged heart',
+    Edema: 'Fluid in lungs',
+    Consolidation: 'Lung inflammation / congestion',
+    Effusion: 'Fluid around lungs',
+    Atelectasis: 'Collapsed lung area',
+    Pneumothorax: 'Air leak outside lung',
+    Mass: 'Lung shadow / mass',
+    Nodule: 'Small lung spot',
+    Pneumonia: 'Lung infection',
+    Infiltration: 'Lung tissue irritation',
+    Emphysema: 'Stretched air sacs',
+    Fibrosis: 'Lung scarring',
+    Pleural_Thickening: 'Thickened lung lining',
+    Hernia: 'Diaphragm protrusion'
+  };
+
   // Anatomical focal coordinates for Grad-CAM simulation (normalized [0, 1])
   const ANATOMIC_FOCI = {
     Cardiomegaly: [{ cx: 0.52, cy: 0.64, rx: 0.22, ry: 0.18, weight: 1.0 }],
@@ -214,7 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Application State
   const state = {
     mode: 'doctor', // 'doctor' or 'patient'
-    currentView: 'overlay', // 'overlay', 'sidebyside', 'original', 'heatmap', 'contour'
+    viewDisplay: 'heatmap', // 'original' or 'heatmap'
+    isSideBySide: false, // boolean
+    showRoiBox: false, // boolean
     activeFilter: 'all',
     activeData: null,
     currentBase64: null,
@@ -223,13 +243,15 @@ document.addEventListener('DOMContentLoaded', () => {
     isInverted: false,
     opacity: 0.45,
     threshold: 0.15,
-    colormap: 'magma',
+    colormap: 'viridis',
     chartInstance: null
   };
 
   // DOM Elements
+  const modeBanner = document.getElementById('modeBanner');
   const btnDoctorMode = document.getElementById('btnDoctorMode');
   const btnPatientMode = document.getElementById('btnPatientMode');
+  const modeDescriptionHint = document.getElementById('modeDescriptionHint');
   const btnPrintReport = document.getElementById('btnPrintReport');
   const sampleChipsContainer = document.getElementById('sampleChipsContainer');
 
@@ -244,11 +266,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const analysisSpinner = document.getElementById('analysisSpinner');
   const activePathologyTag = document.getElementById('activePathologyTag');
 
+  // Progressive-Disclosure Analysis Controls
+  const btnViewOriginal = document.getElementById('btnViewOriginal');
+  const btnViewHeatmap = document.getElementById('btnViewHeatmap');
+  const checkSideBySide = document.getElementById('checkSideBySide');
+  const checkRoiBox = document.getElementById('checkRoiBox');
+  const selectColormap = document.getElementById('selectColormap');
+  const advancedDisclosure = document.getElementById('advancedDisclosure');
   const sliderOpacity = document.getElementById('sliderOpacity');
   const valOpacity = document.getElementById('valOpacity');
   const sliderThreshold = document.getElementById('sliderThreshold');
   const valThreshold = document.getElementById('valThreshold');
-  const selectColormap = document.getElementById('selectColormap');
   const btnInvertFilm = document.getElementById('btnInvertFilm');
   const btnResetView = document.getElementById('btnResetView');
   const btnNewScan = document.getElementById('btnNewScan');
@@ -260,7 +288,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const clinicalImpressionText = document.getElementById('clinicalImpressionText');
   const valInferenceTime = document.getElementById('valInferenceTime');
 
+  const chartCardTitle = document.getElementById('chartCardTitle');
+  const chartSubtitle = document.getElementById('chartSubtitle');
   const filterPills = document.getElementById('filterPills');
+  const findingsCard = document.querySelector('.findings-card');
+  const findingsTitle = document.getElementById('findingsTitle');
   const findingsContainer = document.getElementById('findingsContainer');
   const findingsModeTag = document.getElementById('findingsModeTag');
 
@@ -794,51 +826,72 @@ document.addEventListener('DOMContentLoaded', () => {
     activePathologyTag.textContent = `Visualizing Grad-CAM: ${data.active_gradcam_label}`;
     activePathologyTag.classList.remove('hidden');
 
-    topPathologyName.textContent = data.top_pathology;
-    const topProbPercent = Math.round(data.top_probability * 100);
-    topConfidenceText.textContent = `${topProbPercent}%`;
-    topConfidenceMeter.style.background = `conic-gradient(var(--primary) ${topProbPercent * 3.6}deg, var(--border-card) 0deg)`;
-
-    const topFinding = data.pathologies[0];
-    riskBadge.className = `risk-badge badge-${topFinding.badge_color}`;
-    riskBadge.innerHTML = `<i data-lucide="${topFinding.risk_level === 'High' ? 'alert-triangle' : topFinding.risk_level === 'Moderate' ? 'alert-circle' : 'check-circle-2'}"></i> ${topFinding.risk_level} Risk Category`;
-
-    if (sampleMeta && sampleMeta.description) {
-      clinicalImpressionText.innerHTML = `<strong>Patient History:</strong> ${sampleMeta.patient}<br><strong>AI Impression:</strong> ${data.clinical_impression}`;
-    } else {
-      clinicalImpressionText.textContent = data.clinical_impression;
-    }
-
-    valInferenceTime.textContent = `${data.processing_time_ms} ms`;
-
+    renderSummaryCard(data, sampleMeta);
     renderChart(data.pathologies);
     renderFindingsList(data.pathologies);
 
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function renderSummaryCard(data, sampleMeta = null) {
+    const isPatient = state.mode === 'patient';
+    const topFinding = data.pathologies[0];
+    const friendlyTop = PATIENT_FRIENDLY_NAMES[data.top_pathology] || data.top_pathology;
+
+    if (isPatient) {
+      topPathologyName.innerHTML = `${friendlyTop} <span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">(${data.top_pathology})</span>`;
+    } else {
+      topPathologyName.textContent = data.top_pathology;
+    }
+
+    const topProbPercent = Math.round(data.top_probability * 100);
+    topConfidenceText.textContent = `${topProbPercent}%`;
+    topConfidenceMeter.style.background = `conic-gradient(var(--primary) ${topProbPercent * 3.6}deg, var(--border-card) 0deg)`;
+
+    riskBadge.className = `risk-badge badge-${topFinding.badge_color}`;
+    const riskLabel = isPatient
+      ? (topFinding.risk_level === 'High' ? 'Attention Needed' : topFinding.risk_level === 'Moderate' ? 'Follow-Up Recommended' : 'Normal / Low Likelihood')
+      : `${topFinding.risk_level} Risk Category`;
+
+    riskBadge.innerHTML = `<i data-lucide="${topFinding.risk_level === 'High' ? 'alert-triangle' : topFinding.risk_level === 'Moderate' ? 'alert-circle' : 'check-circle-2'}"></i> ${riskLabel}`;
+
+    if (isPatient) {
+      clinicalImpressionText.innerHTML = `<strong>Main Observation:</strong> ${friendlyTop} - ${topFinding.patient_explanation}<br><br><strong>Next Step:</strong> ${topFinding.next_steps}`;
+    } else {
+      if (sampleMeta && sampleMeta.description) {
+        clinicalImpressionText.innerHTML = `<strong>Patient History:</strong> ${sampleMeta.patient}<br><strong>AI Impression:</strong> ${data.clinical_impression}`;
+      } else {
+        clinicalImpressionText.textContent = data.clinical_impression;
+      }
+    }
+
+    valInferenceTime.textContent = `${data.processing_time_ms} ms`;
+  }
+
   // --------------------------------------------------------------------------
-  // 7. PACS Image Controls & Live Saliency Updates
+  // 7. PACS Image Controls & Live Saliency Updates (Focused Progressive UI)
   // --------------------------------------------------------------------------
   function updatePrimaryImageView() {
     if (!state.activeData) return;
 
-    if (state.currentView === 'sidebyside') {
+    if (state.isSideBySide) {
       singleViewContainer.classList.add('hidden');
       sideBySideContainer.classList.remove('hidden');
+      sbsOriginalImg.src = state.activeData.images.original;
+      sbsHeatmapImg.src = state.showRoiBox
+        ? (state.activeData.images.contour || state.activeData.images.overlay)
+        : (state.activeData.images.heatmap || state.activeData.images.overlay);
     } else {
       singleViewContainer.classList.remove('hidden');
       sideBySideContainer.classList.add('hidden');
 
       let targetSrc = '';
-      if (state.currentView === 'overlay') {
-        targetSrc = state.activeData.images.overlay;
-      } else if (state.currentView === 'original') {
+      if (state.viewDisplay === 'original') {
         targetSrc = state.activeData.images.original;
-      } else if (state.currentView === 'heatmap') {
-        targetSrc = state.activeData.images.heatmap;
-      } else if (state.currentView === 'contour') {
-        targetSrc = state.activeData.images.contour;
+      } else {
+        targetSrc = state.showRoiBox
+          ? (state.activeData.images.contour || state.activeData.images.overlay)
+          : (state.activeData.images.overlay || state.activeData.images.heatmap);
       }
       primaryViewerImg.src = targetSrc;
     }
@@ -855,52 +908,112 @@ document.addEventListener('DOMContentLoaded', () => {
     sbsOriginalImg.style.filter = state.isInverted ? 'invert(1)' : 'none';
   }
 
-  document.querySelectorAll('.view-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      state.currentView = tab.dataset.view;
+  // View Mode: Segmented switch (Original ↔ Heatmap)
+  if (btnViewOriginal) {
+    btnViewOriginal.addEventListener('click', () => {
+      btnViewOriginal.classList.add('active');
+      btnViewHeatmap.classList.remove('active');
+      state.viewDisplay = 'original';
+      if (state.isSideBySide) {
+        state.isSideBySide = false;
+        if (checkSideBySide) checkSideBySide.checked = false;
+      }
       updatePrimaryImageView();
     });
-  });
+  }
 
-  btnInvertFilm.addEventListener('click', () => {
-    state.isInverted = !state.isInverted;
-    btnInvertFilm.classList.toggle('btn-highlight', state.isInverted);
-    applyImageFilters();
-  });
+  if (btnViewHeatmap) {
+    btnViewHeatmap.addEventListener('click', () => {
+      btnViewHeatmap.classList.add('active');
+      btnViewOriginal.classList.remove('active');
+      state.viewDisplay = 'heatmap';
+      if (state.isSideBySide) {
+        state.isSideBySide = false;
+        if (checkSideBySide) checkSideBySide.checked = false;
+      }
+      updatePrimaryImageView();
+    });
+  }
 
-  btnResetView.addEventListener('click', () => {
-    state.isInverted = false;
-    btnInvertFilm.classList.remove('btn-highlight');
-    sliderOpacity.value = 45;
-    valOpacity.textContent = '45%';
-    sliderThreshold.value = 15;
-    valThreshold.textContent = '15%';
-    state.opacity = 0.45;
-    state.threshold = 0.15;
-    state.colormap = 'magma';
-    selectColormap.value = 'magma';
-    applyImageFilters();
-    triggerGradcamUpdate();
-  });
+  // Checkbox: Compare side-by-side
+  if (checkSideBySide) {
+    checkSideBySide.addEventListener('change', (e) => {
+      state.isSideBySide = e.target.checked;
+      updatePrimaryImageView();
+    });
+  }
 
-  sliderOpacity.addEventListener('input', (e) => {
-    state.opacity = e.target.value / 100;
-    valOpacity.textContent = `${e.target.value}%`;
-    triggerGradcamUpdate();
-  });
+  // Checkbox: Target ROI Box overlay toggle
+  if (checkRoiBox) {
+    checkRoiBox.addEventListener('change', (e) => {
+      state.showRoiBox = e.target.checked;
+      updatePrimaryImageView();
+    });
+  }
 
-  sliderThreshold.addEventListener('input', (e) => {
-    state.threshold = e.target.value / 100;
-    valThreshold.textContent = `${e.target.value}%`;
-    triggerGradcamUpdate();
-  });
+  // Dropdown: Colormap selection (default Viridis, Jet alternative)
+  if (selectColormap) {
+    selectColormap.addEventListener('change', (e) => {
+      state.colormap = e.target.value;
+      triggerGradcamUpdate();
+    });
+  }
 
-  selectColormap.addEventListener('change', (e) => {
-    state.colormap = e.target.value;
-    triggerGradcamUpdate();
-  });
+  // Invert Film & Reset Defaults (within Advanced controls)
+  if (btnInvertFilm) {
+    btnInvertFilm.addEventListener('click', () => {
+      state.isInverted = !state.isInverted;
+      btnInvertFilm.classList.toggle('btn-highlight', state.isInverted);
+      applyImageFilters();
+    });
+  }
+
+  if (btnResetView) {
+    btnResetView.addEventListener('click', () => {
+      state.isInverted = false;
+      if (btnInvertFilm) btnInvertFilm.classList.remove('btn-highlight');
+
+      state.opacity = 0.45;
+      if (sliderOpacity) sliderOpacity.value = 45;
+      if (valOpacity) valOpacity.textContent = '45%';
+
+      state.threshold = 0.15;
+      if (sliderThreshold) sliderThreshold.value = 15;
+      if (valThreshold) valThreshold.textContent = '15%';
+
+      state.colormap = 'viridis';
+      if (selectColormap) selectColormap.value = 'viridis';
+
+      state.viewDisplay = 'heatmap';
+      if (btnViewHeatmap) btnViewHeatmap.classList.add('active');
+      if (btnViewOriginal) btnViewOriginal.classList.remove('active');
+
+      state.isSideBySide = false;
+      if (checkSideBySide) checkSideBySide.checked = false;
+
+      state.showRoiBox = false;
+      if (checkRoiBox) checkRoiBox.checked = false;
+
+      applyImageFilters();
+      triggerGradcamUpdate();
+    });
+  }
+
+  if (sliderOpacity) {
+    sliderOpacity.addEventListener('input', (e) => {
+      state.opacity = e.target.value / 100;
+      if (valOpacity) valOpacity.textContent = `${e.target.value}%`;
+      triggerGradcamUpdate();
+    });
+  }
+
+  if (sliderThreshold) {
+    sliderThreshold.addEventListener('input', (e) => {
+      state.threshold = e.target.value / 100;
+      if (valThreshold) valThreshold.textContent = `${e.target.value}%`;
+      triggerGradcamUpdate();
+    });
+  }
 
   function triggerGradcamUpdate() {
     if (!state.activeData || !state.currentImageElement) return;
@@ -922,28 +1035,43 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --------------------------------------------------------------------------
-  // 8. Chart.js Pathology Probability Visualizer
+  // 8. Chart.js Pathology Probability Visualizer (Adaptive Dual-Mode)
   // --------------------------------------------------------------------------
   function renderChart(pathologies) {
     const canvasEl = document.getElementById('pathologyChart');
     if (!canvasEl) return;
     const ctx = canvasEl.getContext('2d');
 
-    let filtered = pathologies;
-    if (state.activeFilter !== 'all') {
-      filtered = pathologies.filter(p => p.system.toLowerCase().includes(state.activeFilter.toLowerCase()));
+    const isPatient = state.mode === 'patient';
+    let displayList = [];
+
+    if (isPatient) {
+      // In patient mode: simplify chart to top-3 findings only with plain-language labels
+      displayList = pathologies.slice(0, 3);
+    } else {
+      if (state.activeFilter !== 'all') {
+        displayList = pathologies.filter(p => p.system.toLowerCase().includes(state.activeFilter.toLowerCase()));
+      } else {
+        displayList = pathologies;
+      }
     }
 
-    const labels = filtered.map(p => p.pathology);
-    const dataValues = filtered.map(p => p.percentage);
+    const labels = displayList.map(p => {
+      if (isPatient) {
+        return PATIENT_FRIENDLY_NAMES[p.pathology] || p.pathology;
+      }
+      return p.pathology;
+    });
 
-    const backgroundColors = filtered.map(p => {
+    const dataValues = displayList.map(p => p.percentage);
+
+    const backgroundColors = displayList.map(p => {
       if (p.pathology === state.activeGradcamPathology) {
-        return '#0E7C86';
+        return '#0E7C86'; // Primary active
       }
       if (p.risk_level === 'High') return '#DC3545';
       if (p.risk_level === 'Moderate') return '#ED8936';
-      return '#345995';
+      return '#345995'; // Secondary
     });
 
     if (state.chartInstance) {
@@ -968,15 +1096,24 @@ document.addEventListener('DOMContentLoaded', () => {
         onClick: (event, elements) => {
           if (elements.length > 0) {
             const index = elements[0].index;
-            const clickedPathology = labels[index];
-            switchGradcamTarget(clickedPathology);
+            const clickedItem = displayList[index];
+            if (clickedItem) {
+              switchGradcamTarget(clickedItem.pathology);
+            }
           }
         },
         plugins: {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (context) => ` Probability: ${context.parsed.y}% (Click to inspect Grad-CAM)`
+              label: (context) => {
+                const item = displayList[context.dataIndex];
+                const friendly = PATIENT_FRIENDLY_NAMES[item.pathology] || item.pathology;
+                if (isPatient) {
+                  return ` Probability: ${context.parsed.y}% (${friendly})`;
+                }
+                return ` Probability: ${context.parsed.y}% (Click to inspect Grad-CAM)`;
+              }
             }
           }
         },
@@ -985,7 +1122,9 @@ document.addEventListener('DOMContentLoaded', () => {
             grid: { color: '#E2E8F0' },
             ticks: {
               color: '#4A5568',
-              font: { family: 'Inter', size: 12 }
+              font: { family: 'Inter', size: isPatient ? 13 : 11 },
+              maxRotation: isPatient ? 0 : 35,
+              autoSkip: false
             }
           },
           y: {
@@ -1013,43 +1152,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  filterPills.querySelectorAll('.pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      filterPills.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      state.activeFilter = pill.dataset.filter;
-      if (state.activeData) {
-        renderChart(state.activeData.pathologies);
-      }
+  if (filterPills) {
+    filterPills.querySelectorAll('.pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        filterPills.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        state.activeFilter = pill.dataset.filter;
+        if (state.activeData) {
+          renderChart(state.activeData.pathologies);
+        }
+      });
     });
-  });
+  }
 
   // --------------------------------------------------------------------------
   // 9. Dual-Mode Clinical Findings (Doctor vs. Patient)
   // --------------------------------------------------------------------------
   function renderFindingsList(pathologies) {
     findingsContainer.innerHTML = '';
-    findingsModeTag.textContent = state.mode === 'doctor' ? 'Specialist View' : 'Patient View';
+    const isPatient = state.mode === 'patient';
+    findingsModeTag.textContent = isPatient ? 'Patient-Friendly View' : 'Specialist View';
 
-    pathologies.forEach(item => {
+    const list = isPatient ? pathologies.slice(0, 3) : pathologies;
+
+    list.forEach(item => {
       const div = document.createElement('div');
       div.className = `finding-item ${item.pathology === state.activeGradcamPathology ? 'active-finding' : ''}`;
       div.style.cursor = 'pointer';
 
-      const description = state.mode === 'doctor' ? item.doctor_insight : item.patient_explanation;
+      const friendlyName = PATIENT_FRIENDLY_NAMES[item.pathology] || item.pathology;
+      const title = isPatient ? `${friendlyName}` : item.pathology;
+      const subTitle = isPatient ? `<span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(${item.pathology})</span>` : '';
+      const description = isPatient ? item.patient_explanation : item.doctor_insight;
       const nextAction = item.next_steps;
 
       div.innerHTML = `
         <div class="finding-header">
-          <span class="finding-name">${item.pathology}</span>
+          <span class="finding-name">${title}${subTitle}</span>
           <span class="finding-prob" style="color:${item.risk_level === 'High' ? 'var(--risk-high)' : item.risk_level === 'Moderate' ? 'var(--risk-moderate)' : 'var(--risk-low)'}">
             ${item.percentage}%
           </span>
         </div>
         <p class="finding-desc">${description}</p>
         <div class="finding-steps">
-          <i data-lucide="${state.mode === 'doctor' ? 'clipboard-check' : 'help-circle'}"></i>
-          <span>${state.mode === 'doctor' ? 'Recommended Workup: ' : 'Suggested Next Steps: '} ${nextAction}</span>
+          <i data-lucide="${isPatient ? 'help-circle' : 'clipboard-check'}"></i>
+          <span>${isPatient ? 'Suggested Next Steps: ' : 'Recommended Workup: '} ${nextAction}</span>
         </div>
       `;
 
@@ -1063,19 +1210,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
   }
 
-  btnDoctorMode.addEventListener('click', () => {
-    btnDoctorMode.classList.add('active');
-    btnPatientMode.classList.remove('active');
-    state.mode = 'doctor';
-    if (state.activeData) renderFindingsList(state.activeData.pathologies);
-  });
+  function setDiagnosticMode(mode) {
+    state.mode = mode;
+    if (mode === 'doctor') {
+      btnDoctorMode.classList.add('active');
+      btnPatientMode.classList.remove('active');
+      document.body.classList.remove('mode-patient');
+      document.body.classList.add('mode-doctor');
+      if (modeDescriptionHint) {
+        modeDescriptionHint.textContent = 'Specialist view: full 14-pathology spectrum, progressive PACS controls, and clinical workups';
+      }
+      if (chartCardTitle) chartCardTitle.textContent = 'Pathology Probability Spectrum';
+      if (chartSubtitle) chartSubtitle.textContent = 'Click any bar to re-focus Grad-CAM heatmap on that condition';
+      if (findingsTitle) findingsTitle.textContent = 'Clinical Interpretation & Guidance';
+    } else {
+      btnPatientMode.classList.add('active');
+      btnDoctorMode.classList.remove('active');
+      document.body.classList.remove('mode-doctor');
+      document.body.classList.add('mode-patient');
+      if (modeDescriptionHint) {
+        modeDescriptionHint.textContent = 'Patient view: simplified top-3 key findings with clear, plain-language explanations';
+      }
+      if (chartCardTitle) chartCardTitle.textContent = 'Key Findings Summary (Top 3)';
+      if (chartSubtitle) chartSubtitle.textContent = 'Primary findings identified in your radiograph scan';
+      if (findingsTitle) findingsTitle.textContent = 'Understanding Your Results';
+    }
 
-  btnPatientMode.addEventListener('click', () => {
-    btnPatientMode.classList.add('active');
-    btnDoctorMode.classList.remove('active');
-    state.mode = 'patient';
-    if (state.activeData) renderFindingsList(state.activeData.pathologies);
-  });
+    if (state.activeData) {
+      renderSummaryCard(state.activeData);
+      renderChart(state.activeData.pathologies);
+      renderFindingsList(state.activeData.pathologies);
+    }
+  }
+
+  btnDoctorMode.addEventListener('click', () => setDiagnosticMode('doctor'));
+  btnPatientMode.addEventListener('click', () => setDiagnosticMode('patient'));
 
   // --------------------------------------------------------------------------
   // 10. Printable Formal Radiology Report Modal
