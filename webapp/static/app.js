@@ -12,104 +12,105 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Clinical Knowledge & Pathology Data Matrix
+  // Clinical Knowledge & Pathology Data Matrix
   const CLINICAL_KNOWLEDGE = {
     Cardiomegaly: {
       system: 'Cardiovascular',
       severity_threshold: 0.35,
       doctor_insight: 'Enlargement of cardiac silhouette exceeding standard cardiothoracic ratio (>0.50 on PA view). Consider hypertensive heart disease, dilated cardiomyopathy, or pericardial effusion.',
-      patient_explanation: 'Your heart looks somewhat enlarged on the X-ray. This happens when the heart works harder to pump blood, such as with elevated blood pressure or valve conditions.',
-      next_steps: 'Transthoracic Echocardiogram (TTE), 12-lead ECG, serum BNP/NT-proBNP test, and cardiology review.'
+      patient_explanation: 'The AI model observes that the heart outline appears enlarged on this scan. An enlarged heart silhouette can happen when the heart works harder to pump blood, such as with elevated blood pressure or valve conditions.',
+      next_steps: 'Discuss with your doctor or cardiologist; follow-up blood pressure check and echocardiogram may be considered.'
     },
     Edema: {
       system: 'Pulmonary Vascular',
       severity_threshold: 0.30,
       doctor_insight: 'Alveolar and interstitial fluid accumulation with haziness, Kerley B lines, and vascular cephalization. Often reflects elevated pulmonary capillary wedge pressure.',
-      patient_explanation: 'Fluid is collecting inside the lung tissues, which can make breathing feel heavy or short, often tied to heart or kidney fluid regulation.',
-      next_steps: 'Assessment of volume status, diuretic therapy consideration, continuous pulse oximetry, renal function panel.'
+      patient_explanation: 'The AI model notes signs of fluid buildup in the lung tissue. This can cause feelings of shortness of breath or heavy breathing.',
+      next_steps: 'Consult your healthcare provider promptly to evaluate fluid balance, heart function, and kidney health.'
     },
     Consolidation: {
       system: 'Infectious / Inflammatory',
       severity_threshold: 0.35,
       doctor_insight: 'Homogeneous opacification of alveolar airspace with air bronchograms and preserved lung volume, classic for acute bacterial pneumonia or pulmonary hemorrhage.',
-      patient_explanation: 'A section of the lung is filled with inflammatory fluid instead of air, commonly caused by a localized lung infection (pneumonia).',
-      next_steps: 'Sputum culture, complete blood count (CBC with differential), empirical antimicrobial therapy.'
+      patient_explanation: 'The scan shows an area where lung airspaces appear filled with fluid or inflammatory material rather than air, which is commonly seen during chest infections or pneumonia.',
+      next_steps: 'Follow up with a healthcare provider for clinical evaluation, temperature check, and appropriate treatment.'
     },
     Effusion: {
       system: 'Pleural Space',
       severity_threshold: 0.30,
       doctor_insight: 'Pathologic fluid collection in the pleural space blunting the lateral or posterior costophrenic angle. May compress adjacent lung parenchyma.',
-      patient_explanation: 'Extra fluid has gathered between the outer surface of your lung and your chest wall, reducing room for the lung to fully expand.',
-      next_steps: 'Bedside thoracic ultrasound, lateral decubitus X-ray, consider diagnostic thoracentesis if etiology unknown.'
+      patient_explanation: 'The AI model detects fluid gathering in the space between the lung and the chest wall, which can reduce room for the lung to fully expand.',
+      next_steps: 'A doctor should examine your breathing sounds and may recommend follow-up imaging or ultrasound.'
     },
     Atelectasis: {
       system: 'Airway / Parenchymal',
       severity_threshold: 0.35,
       doctor_insight: 'Volume loss of pulmonary segments with associated shift of fissures, ribs, or mediastinum toward the affected side.',
-      patient_explanation: 'A small part of your lung is temporarily collapsed or under-inflated, which frequently happens after shallow breathing or mucus congestion.',
-      next_steps: 'Incentive spirometry, deep breathing exercises, early mobilization, chest physiotherapy.'
+      patient_explanation: 'A small portion of lung tissue appears under-inflated or temporarily collapsed, which often occurs with shallow breathing, bed rest, or mucus buildup.',
+      next_steps: 'Practice deep breathing exercises, gentle walking, and discuss with your healthcare provider.'
     },
     Pneumothorax: {
       system: 'Pleural Emergency',
       severity_threshold: 0.25,
       doctor_insight: 'Air in pleural space with identifiable visceral pleural edge and absent distal pulmonary vascular markings. Immediately exclude tension pneumothorax.',
-      patient_explanation: 'Air has leaked into the space surrounding the lung, putting pressure on it. Needs prompt medical attention.',
-      next_steps: 'Immediate clinical evaluation of hemodynamics; upright expiration film or chest tube drainage if symptomatic/large.'
+      patient_explanation: 'The AI highlights signs consistent with air outside the lung in the chest cavity, putting pressure on it. If you experience sudden chest pain or shortness of breath, seek emergency medical care.',
+      next_steps: 'Requires urgent medical evaluation by a licensed physician or emergency department.'
     },
     Mass: {
       system: 'Oncology / Lesion',
       severity_threshold: 0.40,
       doctor_insight: 'Circumscribed pulmonary lesion >30mm in diameter. Requires rigorous workup to differentiate malignancy from granuloma or abscess.',
-      patient_explanation: 'A distinct shadow or density larger than 3 cm is visible in the lung area, which requires detailed imaging to understand.',
-      next_steps: 'Contrast-enhanced Thoracic CT scan (HRCT), review prior historical radiographs, pulmonary consult.'
+      patient_explanation: 'A distinct shadow or density larger than 3 cm is visible in the lung area. Shadows have diverse causes (including benign tissue, fluid cysts, or previous infections) and need doctor review.',
+      next_steps: 'Schedule a follow-up consultation with your doctor to review previous scans or arrange a chest CT.'
     },
     Nodule: {
       system: 'Parenchymal Lesion',
       severity_threshold: 0.35,
       doctor_insight: 'Focal pulmonary opacity <=30mm surrounded by aerated lung. Apply Fleischner Society guidelines based on size, margin, and patient risk factors.',
-      patient_explanation: 'A small, rounded spot (under 3 cm) noted in the lung. Often a benign scar from past infection, but deserves check-up.',
-      next_steps: 'High-resolution chest CT follow-up per Fleischner Society protocol in 3 to 12 months.'
+      patient_explanation: 'A small spot or shadow (under 3 cm) is observed in the lung. Small lung spots are very common and often represent harmless scars from past minor infections.',
+      next_steps: 'Show this finding to your physician to determine whether routine follow-up imaging is suggested.'
     },
     Pneumonia: {
       system: 'Infectious',
       severity_threshold: 0.30,
       doctor_insight: 'Patchy or segmental alveolar infiltrates, often accompanied by clinical cough, fever, and leukocytosis.',
-      patient_explanation: 'Active infection in the lung causing inflammation and fluid accumulation in the small air sacs.',
-      next_steps: 'Correlate with temperature and oxygenation, sputum analysis, targeted antibiotic course.'
+      patient_explanation: 'The AI model detects patterns suggestive of an active chest infection causing inflammation in the lung air sacs.',
+      next_steps: 'Consult your doctor promptly for physical exam, symptom check (cough/fever), and targeted treatment.'
     },
     Infiltration: {
       system: 'Parenchymal',
       severity_threshold: 0.35,
       doctor_insight: 'Non-specific ill-defined density denoting cellular or liquid accumulation within the lung parenchyma.',
-      patient_explanation: 'Mild haze or cloudiness in the lung tissue indicating irritation, fluid, or developing infection.',
-      next_steps: 'Clinical correlation with symptoms, consider repeat chest X-ray in 4-6 weeks to check resolution.'
+      patient_explanation: 'The scan shows mild cloudiness or haziness in the lung tissue, often indicating mild irritation, mucus, or early infection.',
+      next_steps: 'Correlate with how you are feeling and review with your doctor if you experience persistent cough.'
     },
     Emphysema: {
       system: 'Obstructive',
       severity_threshold: 0.30,
       doctor_insight: 'Overexpansion of lungs, flattened diaphragmatic domes, attenuated peripheral vascularity, increased retrosternal clear space.',
-      patient_explanation: 'Air sacs in the lungs are permanently enlarged, reducing elasticity, common with chronic smoking or COPD.',
-      next_steps: 'Spirometry (PFT), smoking cessation counseling, inhaled bronchodilator evaluation.'
+      patient_explanation: 'The AI model detects signs of over-expanded air sacs in the lungs, a pattern frequently associated with chronic airway irritation or smoking history.',
+      next_steps: 'Consult your doctor for lung function testing (spirometry) and breathing health guidance.'
     },
     Fibrosis: {
       system: 'Interstitial',
       severity_threshold: 0.30,
       doctor_insight: 'Reticular or reticulonodular interstitial opacities, traction bronchiectasis, architectural distortion, and subpleural honeycombing.',
-      patient_explanation: 'Scarring or thickening of the deep lung tissue that can make the lungs stiffer to inflate.',
-      next_steps: 'High-Resolution Computed Tomography (HRCT), DLCO diffusion testing, pulmonologist consultation.'
+      patient_explanation: 'The model observes signs of tissue scarring or thickening in the lungs, which can make lung tissue stiffer over time.',
+      next_steps: 'Review with a lung specialist (pulmonologist) for specialized high-resolution chest imaging if indicated.'
     },
     Pleural_Thickening: {
       system: 'Pleural',
       severity_threshold: 0.30,
       doctor_insight: 'Fibrotic thickening of the pleural membrane, commonly apical or along the costal margins, with or without calcification.',
-      patient_explanation: 'Thickening along the lining of the lungs, often a healed mark from past pleurisy or inflammation.',
-      next_steps: 'Evaluate for asbestos exposure history, assess stability against past chest X-rays.'
+      patient_explanation: 'The scan shows signs of mild thickening along the outer lining of the lungs, often a permanent mark left by a past healed infection or inflammation.',
+      next_steps: 'Share with your physician during your next routine visit to compare with prior scans.'
     },
     Hernia: {
       system: 'Diaphragmatic',
       severity_threshold: 0.30,
       doctor_insight: 'Intrathoracic protrusion of abdominal contents through a diaphragmatic aperture (hiatal, Bochdalek, or traumatic hernia).',
-      patient_explanation: 'Part of an abdominal structure has pushed slightly upward through the diaphragm into the lower chest area.',
-      next_steps: 'Barium swallow study or thoracoabdominal CT scan; surgical consult if symptomatic.'
+      patient_explanation: 'The scan detects a possible displacement where upper abdominal contents press slightly upward through the diaphragm.',
+      next_steps: 'Discuss with your doctor if you experience heartburn, reflux, or stomach discomfort.'
     }
   };
 
@@ -122,19 +123,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Plain-Language Clinical Pathology Map for Patient Mode
   const PATIENT_FRIENDLY_NAMES = {
     Cardiomegaly: 'Enlarged heart',
-    Edema: 'Fluid in lungs',
+    Pneumothorax: 'Collapsed lung (air outside the lung)',
+    Effusion: 'Fluid around the lungs (Pleural effusion)',
+    Edema: 'Fluid accumulation in the lungs',
     Consolidation: 'Lung inflammation / congestion',
-    Effusion: 'Fluid around lungs',
-    Atelectasis: 'Collapsed lung area',
-    Pneumothorax: 'Air leak outside lung',
-    Mass: 'Lung shadow / mass',
-    Nodule: 'Small lung spot',
-    Pneumonia: 'Lung infection',
-    Infiltration: 'Lung tissue irritation',
-    Emphysema: 'Stretched air sacs',
-    Fibrosis: 'Lung scarring',
+    Atelectasis: 'Partially collapsed lung tissue',
+    Mass: 'Lung shadow / mass (>3 cm)',
+    Nodule: 'Small lung spot / nodule (<3 cm)',
+    Pneumonia: 'Active lung infection',
+    Infiltration: 'Lung tissue irritation / haziness',
+    Emphysema: 'Stretched / damaged air sacs',
+    Fibrosis: 'Deep lung tissue scarring',
     Pleural_Thickening: 'Thickened lung lining',
-    Hernia: 'Diaphragm protrusion'
+    Hernia: 'Diaphragm protrusion / hernia'
   };
 
   // Anatomical focal coordinates for Grad-CAM simulation (normalized [0, 1])
@@ -555,9 +556,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 4. Sample Analysis Execution
   // --------------------------------------------------------------------------
+  function updateSpinnerCopy() {
+    const spinnerTextEl = document.querySelector('#analysisSpinner .spinner-text');
+    const spinnerSubtextEl = document.querySelector('#analysisSpinner .spinner-subtext');
+    if (spinnerTextEl && spinnerSubtextEl) {
+      if (state.mode === 'doctor') {
+        spinnerTextEl.textContent = 'DenseNet-121 Feature Extraction & Grad-CAM Computation...';
+        spinnerSubtextEl.textContent = 'Computing conv5_block16 activation gradients & per-class AUROC probability vectors';
+      } else {
+        spinnerTextEl.textContent = 'Analyzing your scan...';
+        spinnerSubtextEl.textContent = 'Processing image features and preparing a plain-language summary';
+      }
+    }
+  }
+
   async function analyzeSample(sample) {
     dropZone.classList.add('hidden');
     imageDisplayArea.classList.remove('hidden');
+    updateSpinnerCopy();
     analysisSpinner.classList.remove('hidden');
 
     const cleanFilename = sample.filename || (sample.id ? sample.id.replace('case_', '') : '00025288_001.png');
@@ -625,8 +641,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const critical = results.filter(r => r.risk_level === 'High' || r.risk_level === 'Moderate');
       const clinical_impression = critical.length > 0
-        ? `Elevated clinical risk detected for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Anatomic region highlighted via Grad-CAM saliency mapping.`
-        : 'No critical pathological abnormalities detected. Lung volumes and cardiac borders are within normal baseline thresholds.';
+        ? `AI-estimated elevated likelihood for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Saliency region localized via Grad-CAM. (Educational demonstration — not clinically verified).`
+        : 'No elevated pathological likelihoods detected above baseline thresholds in this automated demo run.';
 
       const data = {
         success: true,
@@ -691,6 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleCustomFileUpload(file) {
     dropZone.classList.add('hidden');
     imageDisplayArea.classList.remove('hidden');
+    updateSpinnerCopy();
     analysisSpinner.classList.remove('hidden');
 
     const reader = new FileReader();
@@ -801,8 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const critical = results.filter(r => r.risk_level === 'High' || r.risk_level === 'Moderate');
         const clinical_impression = critical.length > 0
-          ? `Elevated clinical risk detected for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Anatomic region highlighted via Grad-CAM saliency mapping.`
-          : 'No critical pathological abnormalities detected. Lung volumes and cardiac borders are within normal baseline thresholds.';
+          ? `AI-estimated elevated likelihood for: ${critical.slice(0, 3).map(c => `${c.pathology} (${c.percentage}%)`).join(', ')}. Saliency region localized via Grad-CAM. (Educational demonstration — not clinically verified).`
+          : 'No elevated pathological likelihoods detected above baseline thresholds in this automated demo run.';
 
         const data = {
           success: true,
@@ -873,10 +890,10 @@ document.addEventListener('DOMContentLoaded', () => {
     riskBadge.innerHTML = `<i data-lucide="${topFinding.risk_level === 'High' ? 'alert-triangle' : topFinding.risk_level === 'Moderate' ? 'alert-circle' : 'check-circle-2'}"></i> ${riskLabel}`;
 
     if (isPatient) {
-      clinicalImpressionText.innerHTML = `<strong>Main Observation:</strong> ${friendlyTop} - ${topFinding.patient_explanation}<br><br><strong>Next Step:</strong> ${topFinding.next_steps}`;
+      clinicalImpressionText.innerHTML = `<strong>Educational Observation:</strong> ${friendlyTop} - ${topFinding.patient_explanation}<br><br><strong>Suggested Next Step:</strong> ${topFinding.next_steps}`;
     } else {
       if (sampleMeta && sampleMeta.description) {
-        clinicalImpressionText.innerHTML = `<strong>Patient History:</strong> ${sampleMeta.patient}<br><strong>AI Impression:</strong> ${data.clinical_impression}`;
+        clinicalImpressionText.innerHTML = `<strong>Patient History:</strong> ${sampleMeta.patient}<br><strong>AI Impression (DenseNet-121 Demo):</strong> ${data.clinical_impression}`;
       } else {
         clinicalImpressionText.textContent = data.clinical_impression;
       }
@@ -1583,6 +1600,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setDiagnosticMode(mode) {
     state.mode = mode;
+    updateSpinnerCopy();
     if (mode === 'doctor') {
       btnDoctorMode.classList.add('active');
       btnPatientMode.classList.remove('active');

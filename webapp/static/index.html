@@ -77,6 +77,14 @@
     </div>
   </section>
 
+  <!-- Persistent Educational & Non-Diagnostic Disclaimer Banner -->
+  <div class="educational-notice-banner" id="mainEducationalBanner">
+    <i data-lucide="shield-alert"></i>
+    <div class="notice-text">
+      <strong>Educational/demonstration tool.</strong> Not a substitute for professional medical diagnosis. All findings must be confirmed by a licensed radiologist.
+    </div>
+  </div>
+
   <!-- Main Application Body -->
   <main class="app-layout">
     <!-- Left Column: Image Viewer & Analysis Controls -->
@@ -341,6 +349,67 @@
           </div>
         </div>
       </div>
+
+      <!-- 4. Model Transparency & Validation Metrics (Doctor Mode Only) -->
+      <div class="card transparency-card doctor-only" id="transparencyCard">
+        <div class="card-header">
+          <div class="card-title">
+            <i data-lucide="info"></i>
+            <span>Model Transparency & Validation Metrics</span>
+          </div>
+          <span class="transparency-badge">Research Benchmark</span>
+        </div>
+
+        <div class="transparency-grid">
+          <div class="transparency-item">
+            <span class="transparency-label">Model Architecture</span>
+            <span class="transparency-value">DenseNet-121 (Convolutional Feature Extractor, 14 Sigmoid Heads)</span>
+          </div>
+          <div class="transparency-item">
+            <span class="transparency-label">Training Dataset</span>
+            <span class="transparency-value">NIH ChestX-ray8 / ChestX-ray14 Benchmark (Frontal PA/AP Projections)</span>
+          </div>
+          <div class="transparency-item">
+            <span class="transparency-label">Mean Validation AUROC</span>
+            <span class="transparency-value">0.824 (Validation Set ROC-AUC)</span>
+          </div>
+          <div class="transparency-item">
+            <span class="transparency-label">Evaluation & Last Updated</span>
+            <span class="transparency-value">September 2026 (Demo v2.4.0)</span>
+          </div>
+        </div>
+
+        <!-- Per-class AUROC chips grid -->
+        <div class="transparency-auroc-section">
+          <div class="auroc-title">Per-Class Validation Performance (ROC-AUC):</div>
+          <div class="auroc-chips-grid">
+            <div class="auroc-chip"><span>Cardiomegaly</span> <strong>0.90</strong></div>
+            <div class="auroc-chip"><span>Emphysema</span> <strong>0.89</strong></div>
+            <div class="auroc-chip"><span>Effusion</span> <strong>0.88</strong></div>
+            <div class="auroc-chip"><span>Edema</span> <strong>0.88</strong></div>
+            <div class="auroc-chip"><span>Hernia</span> <strong>0.88</strong></div>
+            <div class="auroc-chip"><span>Pneumothorax</span> <strong>0.86</strong></div>
+            <div class="auroc-chip"><span>Mass</span> <strong>0.82</strong></div>
+            <div class="auroc-chip"><span>Fibrosis</span> <strong>0.81</strong></div>
+            <div class="auroc-chip"><span>Atelectasis</span> <strong>0.80</strong></div>
+            <div class="auroc-chip"><span>Consolidation</span> <strong>0.80</strong></div>
+            <div class="auroc-chip"><span>Pleural Thickening</span> <strong>0.78</strong></div>
+            <div class="auroc-chip"><span>Nodule</span> <strong>0.77</strong></div>
+            <div class="auroc-chip"><span>Pneumonia</span> <strong>0.75</strong></div>
+            <div class="auroc-chip"><span>Infiltration</span> <strong>0.70</strong></div>
+          </div>
+        </div>
+
+        <!-- Known Limitations & Source Label Noise -->
+        <div class="transparency-limitations">
+          <div class="limitations-title"><i data-lucide="alert-circle"></i> Known Model Limitations & Source Noise:</div>
+          <ul class="limitations-list">
+            <li><strong>Dataset Label Noise:</strong> NIH ground truth was derived via automated NLP parsing from radiology reports, carrying an estimated ~10–15% label ambiguity.</li>
+            <li><strong>Projection & Positioning Sensitivity:</strong> Optimized for upright PA/AP frontal radiographs. Lateral projections, lordotic views, and portable ICU AP films with cardiac magnification may elevate false-positive saliency.</li>
+            <li><strong>Non-Diagnostic Demonstration:</strong> Strictly an academic demonstration tool of deep learning representations and Grad-CAM interpretability; not FDA-cleared or CE-marked for diagnostic use.</li>
+          </ul>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -351,8 +420,8 @@
         <div class="report-header-brand">
           <i data-lucide="activity"></i>
           <div>
-            <h3>PULMOSCAN AI - DIAGNOSTIC RADIOLOGY REPORT</h3>
-            <span>Automated Deep Learning Multi-Label Classification & Grad-CAM Analysis</span>
+            <h3>PULMOSCAN AI - RADIOLOGICAL DEMONSTRATION REPORT</h3>
+            <span>Educational Deep Learning Multi-Label Classification & Interpretability Demo</span>
           </div>
         </div>
         <div class="modal-actions">
@@ -362,6 +431,14 @@
       </div>
 
       <div class="report-body" id="printableReportContent">
+        <!-- Persistent Visual Disclaimer Box for Report (Requirement 2) -->
+        <div class="report-notice-box">
+          <i data-lucide="shield-alert"></i>
+          <div class="report-notice-text">
+            <strong>Educational/demonstration tool.</strong> Not a substitute for professional medical diagnosis. All findings must be confirmed by a licensed radiologist.
+          </div>
+        </div>
+
         <!-- Patient & Exam Meta Grid -->
         <div class="report-grid">
           <div class="report-meta-box">
@@ -372,7 +449,7 @@
           <div class="report-meta-box">
             <strong>AI Engine:</strong> DenseNet-121 Deep Convolutional Network<br>
             <strong>Interpretation Method:</strong> Grad-CAM (conv5_block16_concat)<br>
-            <strong>Status:</strong> Completed & Verified
+            <strong>Status:</strong> AI-Generated (Not Clinically Verified)
           </div>
         </div>
 
@@ -421,7 +498,7 @@
 
         <!-- Medical Disclaimer -->
         <div class="report-disclaimer">
-          <strong>Notice:</strong> This automated report is generated by an artificial intelligence diagnostic assistant (DenseNet-121) trained on the NIH ChestX-ray8 dataset. It is intended to assist medical practitioners in clinical review and error analysis. Findings must be verified by a board-certified radiologist.
+          <strong>Notice:</strong> This automated report is generated by an artificial intelligence demonstration model (DenseNet-121) trained on the NIH ChestX-ray8 research dataset. It is intended strictly for academic research, education, and algorithmic interpretability demonstration. It is not a clinical diagnostic device. Findings must be confirmed by a board-certified radiologist.
         </div>
       </div>
     </div>
