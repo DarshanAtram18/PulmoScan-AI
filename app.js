@@ -244,7 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
     opacity: 0.45,
     threshold: 0.15,
     colormap: 'viridis',
-    chartInstance: null
+    barChartInstance: null,
+    radarChartInstance: null,
+    trendChartInstance: null,
+    reportChartInstance: null,
+    scanHistory: []
   };
 
   // DOM Elements
@@ -288,8 +292,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const clinicalImpressionText = document.getElementById('clinicalImpressionText');
   const valInferenceTime = document.getElementById('valInferenceTime');
 
+  // Visualizations & Diagnostics Elements
+  const radarCard = document.getElementById('radarCard');
+  const radarCardTitle = document.getElementById('radarCardTitle');
+  const radarCardSubtitle = document.getElementById('radarCardSubtitle');
+  const horizontalBarCard = document.getElementById('horizontalBarCard');
+  const horizontalChartContainer = document.getElementById('horizontalChartContainer');
   const chartCardTitle = document.getElementById('chartCardTitle');
   const chartSubtitle = document.getElementById('chartSubtitle');
+  const ciWhiskerBadge = document.getElementById('ciWhiskerBadge');
+  const trendCard = document.getElementById('trendCard');
+  const trendCardTitle = document.getElementById('trendCardTitle');
+  const trendCardSubtitle = document.getElementById('trendCardSubtitle');
+  const btnResetHistory = document.getElementById('btnResetHistory');
   const filterPills = document.getElementById('filterPills');
   const findingsCard = document.querySelector('.findings-card');
   const findingsTitle = document.getElementById('findingsTitle');
@@ -826,8 +841,10 @@ document.addEventListener('DOMContentLoaded', () => {
     activePathologyTag.textContent = `Visualizing Grad-CAM: ${data.active_gradcam_label}`;
     activePathologyTag.classList.remove('hidden');
 
+    trackScanHistory(data, sampleMeta);
     renderSummaryCard(data, sampleMeta);
-    renderChart(data.pathologies);
+    renderRadarChart(data.pathologies);
+    renderHorizontalBarChart(data.pathologies);
     renderFindingsList(data.pathologies);
 
     if (window.lucide) window.lucide.createIcons();
@@ -1035,9 +1052,162 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --------------------------------------------------------------------------
-  // 8. Chart.js Pathology Probability Visualizer (Adaptive Dual-Mode)
+  // 8. Visualizations: Radar Profile, Horizontal Bars with CI & Multi-Scan Trends
   // --------------------------------------------------------------------------
-  function renderChart(pathologies) {
+  const CATEGORY_MAP = {
+    cardiac: {
+      doctor: 'Cardiac / Vascular',
+      patient: 'Heart & Circulation',
+      pathologies: ['Cardiomegaly', 'Edema']
+    },
+    infection: {
+      doctor: 'Infiltrates & Infection',
+      patient: 'Lungs & Infection',
+      pathologies: ['Consolidation', 'Infiltration', 'Pneumonia', 'Atelectasis']
+    },
+    pleural: {
+      doctor: 'Pleural Space',
+      patient: 'Fluid & Lining',
+      pathologies: ['Effusion', 'Pneumothorax', 'Pleural_Thickening']
+    },
+    lesions: {
+      doctor: 'Lesions & Masses',
+      patient: 'Spots & Shadows',
+      pathologies: ['Mass', 'Nodule', 'Fibrosis', 'Emphysema', 'Hernia']
+    }
+  };
+
+  function getCategoryScores(pathologies) {
+    const probMap = {};
+    pathologies.forEach(p => { probMap[p.pathology] = p.percentage; });
+
+    function getScore(keys) {
+      const vals = keys.map(k => probMap[k] || 0);
+      return Math.max(...vals, 0);
+    }
+
+    return {
+      cardiac: getScore(CATEGORY_MAP.cardiac.pathologies),
+      infection: getScore(CATEGORY_MAP.infection.pathologies),
+      pleural: getScore(CATEGORY_MAP.pleural.pathologies),
+      lesions: getScore(CATEGORY_MAP.lesions.pathologies)
+    };
+  }
+
+  // 8A. Radar/Spider Chart: Pathology Category Profile Shape
+  function renderRadarChart(pathologies) {
+    const canvasEl = document.getElementById('radarChart');
+    if (!canvasEl) return;
+    const ctx = canvasEl.getContext('2d');
+
+    const isPatient = state.mode === 'patient';
+    const scores = getCategoryScores(pathologies);
+
+    const labels = isPatient
+      ? [CATEGORY_MAP.cardiac.patient, CATEGORY_MAP.infection.patient, CATEGORY_MAP.pleural.patient, CATEGORY_MAP.lesions.patient]
+      : [CATEGORY_MAP.cardiac.doctor, CATEGORY_MAP.infection.doctor, CATEGORY_MAP.pleural.doctor, CATEGORY_MAP.lesions.doctor];
+
+    const dataValues = [scores.cardiac, scores.infection, scores.pleural, scores.lesions];
+
+    if (state.radarChartInstance) {
+      state.radarChartInstance.destroy();
+    }
+
+    state.radarChartInstance = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: isPatient ? 'Finding Score (%)' : 'Category Risk (%)',
+          data: dataValues,
+          backgroundColor: 'rgba(14, 124, 134, 0.18)',
+          borderColor: '#0E7C86',
+          borderWidth: 2,
+          pointBackgroundColor: '#0E7C86',
+          pointBorderColor: '#FFFFFF',
+          pointBorderWidth: 2,
+          pointHoverBackgroundColor: '#345995',
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => ` ${context.dataset.label}: ${context.parsed.r}%`
+            }
+          }
+        },
+        scales: {
+          r: {
+            min: 0,
+            max: 100,
+            ticks: {
+              stepSize: 25,
+              color: '#94A3B8',
+              backdropColor: 'transparent',
+              font: { family: 'JetBrains Mono', size: 10 },
+              callback: (val) => `${val}%`
+            },
+            grid: { color: '#E2E8F0' },
+            angleLines: { color: '#E2E8F0' },
+            pointLabels: {
+              color: '#1A2332',
+              font: { family: 'Inter', size: 12, weight: '600' }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 8B. Confidence Interval Whisker Plugin (±5% Estimated Range Stub)
+  const confidenceIntervalPlugin = {
+    id: 'confidenceIntervalWhiskers',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales: { x } } = chart;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta || !meta.data) return;
+
+      ctx.save();
+      ctx.strokeStyle = '#1A2332';
+      ctx.lineWidth = 1.5;
+
+      meta.data.forEach((bar, index) => {
+        const val = chart.data.datasets[0].data[index];
+        if (val === undefined || isNaN(val)) return;
+
+        const minVal = Math.max(0, val - 5);
+        const maxVal = Math.min(100, val + 5);
+
+        const xMin = x.getPixelForValue(minVal);
+        const xMax = x.getPixelForValue(maxVal);
+        const y = bar.y;
+        const cap = 3.5;
+
+        ctx.beginPath();
+        // Whisker horizontal line
+        ctx.moveTo(xMin, y);
+        ctx.lineTo(xMax, y);
+        // Left whisker cap
+        ctx.moveTo(xMin, y - cap);
+        ctx.lineTo(xMin, y + cap);
+        // Right whisker cap
+        ctx.moveTo(xMax, y - cap);
+        ctx.lineTo(xMax, y + cap);
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+  };
+
+  // 8C. Horizontal Probability Bar Chart per individual pathology, sorted descending
+  function renderHorizontalBarChart(pathologies) {
     const canvasEl = document.getElementById('pathologyChart');
     if (!canvasEl) return;
     const ctx = canvasEl.getContext('2d');
@@ -1046,14 +1216,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let displayList = [];
 
     if (isPatient) {
-      // In patient mode: simplify chart to top-3 findings only with plain-language labels
-      displayList = pathologies.slice(0, 3);
+      // In patient mode: top-3 findings only, sorted descending
+      displayList = [...pathologies].sort((a, b) => b.percentage - a.percentage).slice(0, 3);
     } else {
       if (state.activeFilter !== 'all') {
         displayList = pathologies.filter(p => p.system.toLowerCase().includes(state.activeFilter.toLowerCase()));
       } else {
-        displayList = pathologies;
+        displayList = [...pathologies];
       }
+      displayList.sort((a, b) => b.percentage - a.percentage);
+    }
+
+    if (horizontalChartContainer) {
+      horizontalChartContainer.style.height = isPatient ? '160px' : (displayList.length > 6 ? '380px' : '230px');
     }
 
     const labels = displayList.map(p => {
@@ -1074,11 +1249,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return '#345995'; // Secondary
     });
 
-    if (state.chartInstance) {
-      state.chartInstance.destroy();
+    if (state.barChartInstance) {
+      state.barChartInstance.destroy();
     }
 
-    state.chartInstance = new Chart(ctx, {
+    state.barChartInstance = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: labels,
@@ -1087,10 +1262,13 @@ document.addEventListener('DOMContentLoaded', () => {
           data: dataValues,
           backgroundColor: backgroundColors,
           borderRadius: 6,
-          borderSkipped: false
+          borderSkipped: false,
+          barPercentage: 0.72,
+          categoryPercentage: 0.85
         }]
       },
       options: {
+        indexAxis: 'y', // Horizontal orientation per requirement 2
         responsive: true,
         maintainAspectRatio: false,
         onClick: (event, elements) => {
@@ -1109,11 +1287,144 @@ document.addEventListener('DOMContentLoaded', () => {
               label: (context) => {
                 const item = displayList[context.dataIndex];
                 const friendly = PATIENT_FRIENDLY_NAMES[item.pathology] || item.pathology;
+                const val = context.parsed.x;
+                const low = Math.max(0, val - 5).toFixed(1);
+                const high = Math.min(100, val + 5).toFixed(1);
                 if (isPatient) {
-                  return ` Probability: ${context.parsed.y}% (${friendly})`;
+                  return ` Probability: ${val}% (Estimated range: ${low}% – ${high}%)`;
                 }
-                return ` Probability: ${context.parsed.y}% (Click to inspect Grad-CAM)`;
+                return ` Probability: ${val}% (Est. range: ${low}% – ${high}%) • Click to inspect Grad-CAM`;
               }
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: 100,
+            grid: { color: '#E2E8F0' },
+            ticks: {
+              color: '#4A5568',
+              font: { family: 'JetBrains Mono', size: 11 },
+              callback: (value) => `${value}%`
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              color: '#1A2332',
+              font: { family: 'Inter', size: isPatient ? 13 : 11, weight: '500' },
+              autoSkip: false
+            }
+          }
+        }
+      },
+      plugins: [confidenceIntervalPlugin]
+    });
+  }
+
+  // 8D. Longitudinal Multi-Scan Trend Tracking & Visualization
+  function trackScanHistory(data, sampleMeta) {
+    const scanNum = state.scanHistory.length + 1;
+    const label = `Scan ${scanNum}`;
+    const name = sampleMeta?.title ? sampleMeta.title.split(':')[0] : `Scan #${scanNum}`;
+    const probDict = {};
+    data.pathologies.forEach(p => { probDict[p.pathology] = p.percentage; });
+
+    // Deduplicate identical re-render calls
+    const isDuplicate = state.scanHistory.length > 0 &&
+      state.scanHistory[state.scanHistory.length - 1].topPathology === data.top_pathology &&
+      JSON.stringify(state.scanHistory[state.scanHistory.length - 1].probabilities) === JSON.stringify(probDict);
+
+    if (!isDuplicate) {
+      state.scanHistory.push({
+        id: `scan_${Date.now()}_${scanNum}`,
+        label: label,
+        name: name,
+        topPathology: data.top_pathology,
+        probabilities: probDict
+      });
+    }
+
+    renderTrendChart();
+  }
+
+  function renderTrendChart() {
+    if (!trendCard) return;
+
+    if (state.scanHistory.length < 2) {
+      trendCard.classList.add('hidden');
+      return;
+    }
+
+    trendCard.classList.remove('hidden');
+    const canvasEl = document.getElementById('trendChart');
+    if (!canvasEl) return;
+    const ctx = canvasEl.getContext('2d');
+
+    const isPatient = state.mode === 'patient';
+
+    // Find top 4 pathologies across all recorded scans
+    const maxProbs = {};
+    LABELS.forEach(lbl => {
+      maxProbs[lbl] = Math.max(...state.scanHistory.map(s => s.probabilities[lbl] || 0));
+    });
+    const trackedPathologies = LABELS
+      .filter(lbl => maxProbs[lbl] >= 15)
+      .sort((a, b) => maxProbs[b] - maxProbs[a])
+      .slice(0, 4);
+
+    if (trackedPathologies.length === 0) {
+      trackedPathologies.push(...LABELS.slice(0, 3));
+    }
+
+    // Colors strictly conforming to tokens: Primary (#0E7C86), Secondary (#345995), High Risk (#DC3545), Moderate Risk (#ED8936)
+    const lineColors = ['#0E7C86', '#345995', '#DC3545', '#ED8936'];
+    const labels = state.scanHistory.map(s => s.label);
+
+    const datasets = trackedPathologies.map((pathName, idx) => {
+      const color = lineColors[idx % lineColors.length];
+      const displayName = isPatient ? (PATIENT_FRIENDLY_NAMES[pathName] || pathName) : pathName;
+
+      return {
+        label: displayName,
+        data: state.scanHistory.map(s => s.probabilities[pathName] || 0),
+        borderColor: color,
+        backgroundColor: color,
+        borderWidth: 2.5,
+        tension: 0.25,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: false
+      };
+    });
+
+    if (state.trendChartInstance) {
+      state.trendChartInstance.destroy();
+    }
+
+    state.trendChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              boxWidth: 12,
+              font: { family: 'Inter', size: 12, weight: '500' },
+              color: '#1A2332'
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => ` ${context.dataset.label}: ${context.parsed.y}%`
             }
           }
         },
@@ -1122,9 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
             grid: { color: '#E2E8F0' },
             ticks: {
               color: '#4A5568',
-              font: { family: 'Inter', size: isPatient ? 13 : 11 },
-              maxRotation: isPatient ? 0 : 35,
-              autoSkip: false
+              font: { family: 'Inter', size: 12 }
             }
           },
           y: {
@@ -1133,8 +1442,70 @@ document.addEventListener('DOMContentLoaded', () => {
             grid: { color: '#E2E8F0' },
             ticks: {
               color: '#4A5568',
-              font: { family: 'JetBrains Mono', size: 12 },
-              callback: (value) => `${value}%`
+              font: { family: 'JetBrains Mono', size: 11 },
+              callback: (val) => `${val}%`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 8E. Printable Report Summary Chart (Compact Visual Overview)
+  function renderReportSummaryChart(data) {
+    const canvasEl = document.getElementById('reportSummaryChart');
+    if (!canvasEl) return;
+    const ctx = canvasEl.getContext('2d');
+
+    const sorted = [...data.pathologies].sort((a, b) => b.percentage - a.percentage).slice(0, 7);
+    const labels = sorted.map(p => p.pathology);
+    const dataValues = sorted.map(p => p.percentage);
+    const colors = sorted.map((p, idx) => idx === 0 ? '#0E7C86' : '#345995');
+
+    if (state.reportChartInstance) {
+      state.reportChartInstance.destroy();
+    }
+
+    state.reportChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Probability (%)',
+          data: dataValues,
+          backgroundColor: colors,
+          borderRadius: 4,
+          barPercentage: 0.65
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` Probability: ${ctx.parsed.x}%`
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: 100,
+            grid: { color: '#E2E8F0' },
+            ticks: {
+              color: '#4A5568',
+              font: { family: 'JetBrains Mono', size: 10 },
+              callback: (v) => `${v}%`
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              color: '#1A2332',
+              font: { family: 'Inter', size: 11, weight: '600' }
             }
           }
         }
@@ -1147,7 +1518,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activePathologyTag.textContent = `Visualizing Grad-CAM: ${pathologyName}`;
     triggerGradcamUpdate();
     if (state.activeData) {
-      renderChart(state.activeData.pathologies);
+      renderHorizontalBarChart(state.activeData.pathologies);
       renderFindingsList(state.activeData.pathologies);
     }
   }
@@ -1159,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pill.classList.add('active');
         state.activeFilter = pill.dataset.filter;
         if (state.activeData) {
-          renderChart(state.activeData.pathologies);
+          renderHorizontalBarChart(state.activeData.pathologies);
         }
       });
     });
@@ -1220,8 +1591,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modeDescriptionHint) {
         modeDescriptionHint.textContent = 'Specialist view: full 14-pathology spectrum, progressive PACS controls, and clinical workups';
       }
+      if (radarCardTitle) radarCardTitle.textContent = 'Thoracic Category Profile';
+      if (radarCardSubtitle) radarCardSubtitle.textContent = 'Multi-system risk profile across 4 thoracic pathology domains';
       if (chartCardTitle) chartCardTitle.textContent = 'Pathology Probability Spectrum';
-      if (chartSubtitle) chartSubtitle.textContent = 'Click any bar to re-focus Grad-CAM heatmap on that condition';
+      if (chartSubtitle) chartSubtitle.textContent = 'Sorted descending • Click any bar to re-focus Grad-CAM heatmap';
       if (findingsTitle) findingsTitle.textContent = 'Clinical Interpretation & Guidance';
     } else {
       btnPatientMode.classList.add('active');
@@ -1231,14 +1604,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modeDescriptionHint) {
         modeDescriptionHint.textContent = 'Patient view: simplified top-3 key findings with clear, plain-language explanations';
       }
+      if (radarCardTitle) radarCardTitle.textContent = 'Anatomical Area Overview';
+      if (radarCardSubtitle) radarCardSubtitle.textContent = 'Overall visual map of areas checked in your chest scan';
       if (chartCardTitle) chartCardTitle.textContent = 'Key Findings Summary (Top 3)';
-      if (chartSubtitle) chartSubtitle.textContent = 'Primary findings identified in your radiograph scan';
+      if (chartSubtitle) chartSubtitle.textContent = 'Sorted descending • Primary findings identified in your radiograph scan';
       if (findingsTitle) findingsTitle.textContent = 'Understanding Your Results';
     }
 
     if (state.activeData) {
       renderSummaryCard(state.activeData);
-      renderChart(state.activeData.pathologies);
+      renderRadarChart(state.activeData.pathologies);
+      renderHorizontalBarChart(state.activeData.pathologies);
+      renderTrendChart();
       renderFindingsList(state.activeData.pathologies);
     }
   }
@@ -1246,8 +1623,19 @@ document.addEventListener('DOMContentLoaded', () => {
   btnDoctorMode.addEventListener('click', () => setDiagnosticMode('doctor'));
   btnPatientMode.addEventListener('click', () => setDiagnosticMode('patient'));
 
+  if (btnResetHistory) {
+    btnResetHistory.addEventListener('click', () => {
+      state.scanHistory = [];
+      if (state.trendChartInstance) {
+        state.trendChartInstance.destroy();
+        state.trendChartInstance = null;
+      }
+      if (trendCard) trendCard.classList.add('hidden');
+    });
+  }
+
   // --------------------------------------------------------------------------
-  // 10. Printable Formal Radiology Report Modal
+  // 10. Printable Formal Radiology Report Modal (Compact Chart + Table)
   // --------------------------------------------------------------------------
   btnPrintReport.addEventListener('click', () => {
     if (!state.activeData) return;
@@ -1257,6 +1645,8 @@ document.addEventListener('DOMContentLoaded', () => {
     reportOriginalImg.src = state.activeData.images.original;
     reportOverlayImg.src = state.activeData.images.overlay;
     reportImpressionText.textContent = state.activeData.clinical_impression;
+
+    renderReportSummaryChart(state.activeData);
 
     reportTableBody.innerHTML = '';
     state.activeData.pathologies.forEach(item => {

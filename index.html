@@ -259,14 +259,33 @@
         </div>
       </div>
 
-      <!-- Probability Graphs & Differential Diagnosis -->
-      <div class="card chart-card">
+      <!-- 1. Category Profile Radar / Spider Chart (Shape of Diagnostic Finding) -->
+      <div class="card radar-card" id="radarCard">
         <div class="card-header">
           <div class="card-title">
-            <i data-lucide="bar-chart-3"></i>
-            <span id="chartCardTitle">Pathology Probability Spectrum</span>
+            <i data-lucide="radar"></i>
+            <span id="radarCardTitle">Thoracic Category Profile</span>
           </div>
-          <div class="chart-subtitle" id="chartSubtitle">Click any bar to re-focus Grad-CAM heatmap on that condition</div>
+          <div class="chart-subtitle" id="radarCardSubtitle">Multi-system risk profile across 4 thoracic pathology domains</div>
+        </div>
+        <div class="radar-chart-container">
+          <canvas id="radarChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 2. Probability Graphs & Differential Diagnosis (Horizontal Bars with Whiskers) -->
+      <div class="card chart-card" id="horizontalBarCard">
+        <div class="card-header">
+          <div class="card-title-row">
+            <div class="card-title">
+              <i data-lucide="bar-chart-horizontal"></i>
+              <span id="chartCardTitle">Pathology Probability Spectrum</span>
+            </div>
+            <span class="ci-whisker-badge" id="ciWhiskerBadge" title="Estimated range stubbed at ±5% band">
+              <i data-lucide="git-commit"></i> Estimated range: ±5%
+            </span>
+          </div>
+          <div class="chart-subtitle" id="chartSubtitle">Sorted descending &bull; Click any bar to re-focus Grad-CAM heatmap</div>
         </div>
 
         <!-- Category Filters (Doctor mode only) -->
@@ -278,8 +297,29 @@
           <button class="pill" data-filter="Lesion">Lesions / Mass</button>
         </div>
 
-        <div class="chart-container">
+        <div class="chart-container horizontal-chart-container" id="horizontalChartContainer">
           <canvas id="pathologyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 3. Longitudinal Multi-Scan Trend Card (Visible when >= 2 scans analyzed) -->
+      <div class="card trend-card hidden" id="trendCard">
+        <div class="card-header">
+          <div class="card-title-row">
+            <div class="card-title">
+              <i data-lucide="trending-up"></i>
+              <span id="trendCardTitle">Longitudinal Scan Progression</span>
+            </div>
+            <button type="button" class="tool-btn btn-sm" id="btnResetHistory" title="Reset multi-scan trend history">
+              <i data-lucide="rotate-ccw"></i> Reset History
+            </button>
+          </div>
+          <div class="chart-subtitle" id="trendCardSubtitle">
+            Tracking pathology probability trajectory across sequential radiographs for this case
+          </div>
+        </div>
+        <div class="chart-container trend-chart-container">
+          <canvas id="trendChart"></canvas>
         </div>
       </div>
 
@@ -354,9 +394,15 @@
           <p id="reportImpressionText">Impression will appear here.</p>
         </div>
 
-        <!-- Quantitative Pathology Table (Doctor mode only) -->
+        <!-- Quantitative Pathology Table & Visual Spectrum (Doctor mode only) -->
         <div class="report-section doctor-only" id="reportProbabilityTableSection">
-          <h4>QUANTITATIVE PATHOLOGY PROBABILITY MATRIX</h4>
+          <h4>QUANTITATIVE PATHOLOGY SPECTRUM & MATRIX</h4>
+          <div class="report-chart-box">
+            <div class="report-chart-label"><i data-lucide="bar-chart-2"></i> Probability Distribution Overview</div>
+            <div class="report-chart-wrapper">
+              <canvas id="reportSummaryChart"></canvas>
+            </div>
+          </div>
           <table class="report-table">
             <thead>
               <tr>

@@ -1080,8 +1080,95 @@ body.mode-doctor .patient-only {
   font-weight: 600;
 }
 
+/* Card Title Row with Badges and Actions */
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Confidence Interval Whisker Badge */
+.ci-whisker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-12);
+  font-weight: 500;
+  color: var(--text-body);
+  background: #F1F5F9;
+  border: 1px solid var(--border-card);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.ci-whisker-badge i {
+  width: 14px;
+  height: 14px;
+  color: var(--primary);
+}
+
+.tool-btn.btn-sm {
+  font-size: var(--font-size-12);
+  padding: 4px 10px;
+}
+
+/* Chart Containers */
 .chart-container {
   height: 240px;
+  position: relative;
+}
+
+.radar-chart-container {
+  height: 250px;
+  position: relative;
+  max-width: 440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.horizontal-chart-container {
+  height: 340px;
+  position: relative;
+  transition: height 0.25s ease;
+}
+
+.trend-chart-container {
+  height: 220px;
+  position: relative;
+}
+
+/* Printable Report Chart Box */
+.report-chart-box {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #F8FAFC;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+}
+
+.report-chart-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  color: var(--text-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.report-chart-label i {
+  width: 14px;
+  height: 14px;
+  color: var(--primary);
+}
+
+.report-chart-wrapper {
+  height: 170px;
   position: relative;
 }
 
@@ -1441,5 +1528,20 @@ body.mode-patient .findings-mode-tag {
   }
   .modal-actions, .modal-header {
     display: none;
+  }
+  .report-chart-box {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+  }
+  .report-table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .report-table th {
+    background: #F1F5F9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
